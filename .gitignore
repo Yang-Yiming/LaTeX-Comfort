@@ -4,3 +4,5 @@ dist/
 .DS_Store
 .env
 .vscode-test/
+third_party/*
+!third_party/README.md
