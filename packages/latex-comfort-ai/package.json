@@ -1,0 +1,26 @@
+{
+  "name": "latex-comfort-ai",
+  "displayName": "LaTeX Comfort AI",
+  "description": "AI selection editing for LaTeX Comfort.",
+  "version": "0.1.0",
+  "publisher": "latex-comfort-dev",
+  "license": "Apache-2.0",
+  "engines": {
+    "vscode": "^1.146.0"
+  },
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onCommand:latexComfort.ai.editSelection",
+    "onCommand:latexComfort.ai.configureProvider"
+  ],
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "build:webview": "vite build --config webview/vite.config.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@latex-comfort/shared": "workspace:*",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  }
+}
