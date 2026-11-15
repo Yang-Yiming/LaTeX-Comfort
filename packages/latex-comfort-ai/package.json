@@ -85,7 +85,9 @@
           "type": "string",
           "enum": [
             "vscode-lm",
-            "openai-compatible"
+            "openai-compatible",
+            "deepseek",
+            "opencode-go"
           ],
           "default": "vscode-lm",
           "description": "Provider used for selection edits."
@@ -98,7 +100,7 @@
         "latexComfort.ai.model": {
           "type": "string",
           "default": "",
-          "description": "Model name. For vscode-lm this can be a model id or family; empty uses the first available model."
+          "description": "Model name. Provider presets use their own defaults when empty. For vscode-lm this can be a model id or family."
         },
         "latexComfort.ai.maxChars": {
           "type": "number",

@@ -1,4 +1,9 @@
-export const PROVIDERS = ["vscode-lm", "openai-compatible"] as const;
+export const PROVIDERS = [
+  "vscode-lm",
+  "openai-compatible",
+  "deepseek",
+  "opencode-go",
+] as const;
 
 export type ProviderKind = (typeof PROVIDERS)[number];
 

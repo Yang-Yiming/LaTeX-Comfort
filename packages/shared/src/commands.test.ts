@@ -3,6 +3,8 @@ import {
   COMMANDS,
   DEFAULT_PROVIDER_SETTINGS,
   PROVIDERS,
+  SECRET_KEYS,
+  providerSecretKey,
 } from "./index";
 
 describe("shared contracts", () => {
@@ -16,8 +18,13 @@ describe("shared contracts", () => {
     );
   });
 
-  it("offers the two supported providers", () => {
-    expect(PROVIDERS).toEqual(["vscode-lm", "openai-compatible"]);
+  it("offers the supported providers", () => {
+    expect(PROVIDERS).toEqual([
+      "vscode-lm",
+      "openai-compatible",
+      "deepseek",
+      "opencode-go",
+    ]);
   });
 
   it("uses conservative provider defaults", () => {
@@ -28,5 +35,19 @@ describe("shared contracts", () => {
       maxChars: 12000,
       temperature: 0.2,
     });
+  });
+
+  it("keeps API keys isolated by provider", () => {
+    expect(SECRET_KEYS.apiKeyLegacy).toBe("latexComfort.ai.apiKey");
+    expect(providerSecretKey("deepseek")).toBe(
+      "latexComfort.ai.apiKey.deepseek",
+    );
+    expect(providerSecretKey("opencode-go")).toBe(
+      "latexComfort.ai.apiKey.opencode-go",
+    );
+    expect(providerSecretKey("openai-compatible")).toBe(
+      "latexComfort.ai.apiKey.openai-compatible",
+    );
+    expect(providerSecretKey("vscode-lm")).toBeUndefined();
   });
 });

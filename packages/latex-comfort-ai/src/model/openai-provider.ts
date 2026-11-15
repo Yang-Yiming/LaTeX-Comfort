@@ -32,6 +32,10 @@ export function createOpenAICompatibleProvider(
         "Content-Type": "application/json",
       };
       if (config.apiKey) headers.Authorization = `Bearer ${config.apiKey}`;
+      if (config.userAgent) headers["User-Agent"] = config.userAgent;
+      if (config.sessionHeader) {
+        headers[config.sessionHeader] = request.sessionId;
+      }
 
       const response = await fetchImpl(`${config.baseUrl}/chat/completions`, {
         method: "POST",

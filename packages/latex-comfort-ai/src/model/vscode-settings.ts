@@ -2,12 +2,13 @@ import * as vscode from "vscode";
 import {
   DEFAULT_PROVIDER_SETTINGS,
   PROVIDERS,
-  SECRET_KEYS,
   type ProviderSettings,
 } from "@latex-comfort/shared";
 import { createOpenAICompatibleProvider } from "./openai-provider";
 import { createVscodeLmProvider } from "./vscode-lm-provider";
 import { resolveProviderConfig, type ProviderConfig } from "./config";
+import { getProviderPreset } from "./presets";
+import { readProviderApiKey, storeProviderApiKey } from "./secrets";
 
 const SECTION = "latexComfort.ai";
 
@@ -20,13 +21,18 @@ export function readProviderSettings(): ProviderSettings {
   const provider = (PROVIDERS as readonly string[]).includes(providerValue)
     ? (providerValue as ProviderSettings["provider"])
     : DEFAULT_PROVIDER_SETTINGS.provider;
+  const preset = getProviderPreset(provider);
+  const configuredModel = config.get<string>(
+    "model",
+    DEFAULT_PROVIDER_SETTINGS.model,
+  );
   return {
     provider,
     baseUrl: config.get<string>(
       "baseUrl",
-      DEFAULT_PROVIDER_SETTINGS.baseUrl,
+      preset?.baseUrl ?? DEFAULT_PROVIDER_SETTINGS.baseUrl,
     ),
-    model: config.get<string>("model", DEFAULT_PROVIDER_SETTINGS.model),
+    model: configuredModel.trim() || preset?.defaultModel || "",
     maxChars: config.get<number>(
       "maxChars",
       DEFAULT_PROVIDER_SETTINGS.maxChars,
@@ -41,8 +47,11 @@ export function readProviderSettings(): ProviderSettings {
 export async function readProviderConfig(
   context: vscode.ExtensionContext,
 ): Promise<ProviderConfig> {
-  const apiKey = await context.secrets.get(SECRET_KEYS.apiKey);
-  return resolveProviderConfig(readProviderSettings(), apiKey);
+  const settings = readProviderSettings();
+  const apiKey = await readProviderApiKey(context.secrets, settings.provider);
+  return resolveProviderConfig(settings, apiKey, {
+    userAgent: `latex-comfort/${String(context.extension.packageJSON.version ?? "unknown")}`,
+  });
 }
 
 export async function createProvider(context: vscode.ExtensionContext) {
@@ -50,7 +59,7 @@ export async function createProvider(context: vscode.ExtensionContext) {
   if (config.kind === "openai-compatible") {
     return {
       provider: createOpenAICompatibleProvider(config),
-      label: "OpenAI-compatible",
+      label: config.providerLabel,
     };
   }
   return {
@@ -67,12 +76,23 @@ export async function configureProvider(
   context: vscode.ExtensionContext,
 ): Promise<void> {
   const current = readProviderSettings();
+  const currentPreset = getProviderPreset(current.provider);
   const picked = await vscode.window.showQuickPick(
     [
       {
         label: "VS Code Language Model",
         description: "Use models exposed by installed chat providers",
         value: "vscode-lm" as const,
+      },
+      {
+        label: "DeepSeek",
+        description: "Official API · deepseek-flash",
+        value: "deepseek" as const,
+      },
+      {
+        label: "OpenCode Go",
+        description: "OpenCode subscription · DeepSeek V4.1 Flash 1017",
+        value: "opencode-go" as const,
       },
       {
         label: "OpenAI-compatible API",
@@ -82,14 +102,13 @@ export async function configureProvider(
     ],
     {
       title: "LaTeX Comfort AI: Provider",
-      placeHolder: `Current: ${current.provider}`,
+      placeHolder: `Current: ${currentPreset?.label ?? "VS Code language model"}`,
       ignoreFocusOut: true,
     },
   );
   if (!picked) return;
 
   const config = vscode.workspace.getConfiguration(SECTION);
-  await config.update("provider", picked.value, vscode.ConfigurationTarget.Global);
 
   if (picked.value === "vscode-lm") {
     try {
@@ -124,6 +143,42 @@ export async function configureProvider(
     vscode.window.showInformationMessage(
       "LaTeX Comfort AI will use models exposed by VS Code.",
     );
+    await config.update("provider", picked.value, vscode.ConfigurationTarget.Global);
+    return;
+  }
+
+  if (picked.value !== "openai-compatible") {
+    const preset = getProviderPreset(picked.value);
+    if (!preset) return;
+
+    const existingKey = await readProviderApiKey(context.secrets, picked.value);
+    const apiKey = await vscode.window.showInputBox({
+      title: `LaTeX Comfort AI: ${preset.label} API Key`,
+      prompt: existingKey
+        ? "Stored securely in VS Code SecretStorage. Leave empty to keep the current key."
+        : "Stored securely in VS Code SecretStorage. An API key is required.",
+      password: true,
+      ignoreFocusOut: true,
+    });
+    if (apiKey === undefined) return;
+    if (!apiKey.trim() && !existingKey) {
+      void vscode.window.showWarningMessage(
+        `${preset.label} requires an API key.`,
+      );
+      return;
+    }
+
+    if (apiKey.trim()) {
+      await storeProviderApiKey(context.secrets, picked.value, apiKey);
+    }
+    await Promise.all([
+      config.update("provider", picked.value, vscode.ConfigurationTarget.Global),
+      config.update("baseUrl", preset.baseUrl, vscode.ConfigurationTarget.Global),
+      config.update("model", preset.defaultModel, vscode.ConfigurationTarget.Global),
+    ]);
+    vscode.window.showInformationMessage(
+      `LaTeX Comfort AI is configured for ${preset.label} (${preset.displayModel ?? preset.defaultModel}).`,
+    );
     return;
   }
 
@@ -149,20 +204,19 @@ export async function configureProvider(
 
   const apiKey = await vscode.window.showInputBox({
     title: "LaTeX Comfort AI: API Key",
-    prompt: "Stored securely in VS Code SecretStorage. Leave empty for a local endpoint.",
+    prompt: "Stored securely in VS Code SecretStorage. Leave empty for a local endpoint or to keep the current key.",
     password: true,
     ignoreFocusOut: true,
   });
   if (apiKey === undefined) return;
 
   await Promise.all([
+    config.update("provider", picked.value, vscode.ConfigurationTarget.Global),
     config.update("baseUrl", baseUrl.trim(), vscode.ConfigurationTarget.Global),
     config.update("model", model.trim(), vscode.ConfigurationTarget.Global),
   ]);
   if (apiKey.trim()) {
-    await context.secrets.store(SECRET_KEYS.apiKey, apiKey.trim());
-  } else {
-    await context.secrets.delete(SECRET_KEYS.apiKey);
+    await storeProviderApiKey(context.secrets, picked.value, apiKey);
   }
   vscode.window.showInformationMessage(
     `LaTeX Comfort AI is configured for ${model.trim()}.`,

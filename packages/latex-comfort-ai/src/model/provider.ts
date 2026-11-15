@@ -2,6 +2,7 @@ export interface CompletionRequest {
   system: string;
   user: string;
   signal: AbortSignal;
+  sessionId: string;
 }
 
 export interface CompletionResult {

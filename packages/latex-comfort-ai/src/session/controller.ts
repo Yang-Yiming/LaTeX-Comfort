@@ -83,6 +83,7 @@ export class EditController {
         system: prompt.system,
         user: prompt.user,
         signal: abort.signal,
+        sessionId: session.id,
       });
       if (abort.signal.aborted || !this.active || this.active.session.id !== session.id) {
         return;

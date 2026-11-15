@@ -34,6 +34,7 @@ describe("VS Code language model provider", () => {
       system: "system",
       user: "user",
       signal: new AbortController().signal,
+      sessionId: "session-1",
     });
 
     expect(result).toEqual({ text: "Better text.", label: "Test Model" });
@@ -59,6 +60,7 @@ describe("VS Code language model provider", () => {
         system: "system",
         user: "user",
         signal: new AbortController().signal,
+        sessionId: "session-1",
       }),
     ).rejects.toThrow("language model");
   });
