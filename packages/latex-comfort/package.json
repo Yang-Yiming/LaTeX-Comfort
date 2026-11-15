@@ -1,0 +1,23 @@
+{
+  "name": "latex-comfort",
+  "displayName": "LaTeX Comfort",
+  "description": "Quality-of-life improvements for LaTeX writing in VS Code.",
+  "version": "0.1.0",
+  "publisher": "latex-comfort-dev",
+  "license": "Apache-2.0",
+  "engines": {
+    "vscode": "^1.146.0"
+  },
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onLanguage:latex",
+    "onLanguage:markdown"
+  ],
+  "scripts": {
+    "build": "node esbuild.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@latex-comfort/shared": "workspace:*"
+  }
+}
