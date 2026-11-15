@@ -1,3 +1,4 @@
+import type { ProviderConfig } from "./config";
 import type { EditProvider } from "./provider";
 import { cleanModelReply } from "./prompt";
 
@@ -19,15 +20,14 @@ type ChatCompletion = {
 
 /** Adapter for OpenAI-compatible /v1/chat/completions endpoints. */
 export function createOpenAICompatibleProvider(
+  config: ProviderConfig,
   fetchImpl: FetchLike = (input, init) => fetch(input, init),
 ): EditProvider {
+  if (config.kind !== "openai-compatible") {
+    throw new Error("The OpenAI-compatible provider received another provider config.");
+  }
   return {
     async complete(request) {
-      const config = request.config;
-      if (config.kind !== "openai-compatible") {
-        throw new Error("The OpenAI-compatible provider received another provider config.");
-      }
-
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
       };

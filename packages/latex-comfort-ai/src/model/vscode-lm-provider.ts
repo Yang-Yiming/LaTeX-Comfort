@@ -1,3 +1,4 @@
+import type { ProviderConfig } from "./config";
 import type { EditProvider } from "./provider";
 import { cleanModelReply } from "./prompt";
 
@@ -10,25 +11,24 @@ export interface LanguageModelLike {
     messages: unknown[],
     options?: unknown,
     token?: unknown,
-  ): Promise<{ text: AsyncIterable<string> }>;
+  ): PromiseLike<{ text: AsyncIterable<string> }>;
 }
 
 export interface VscodeLmDependencies {
-  selectChatModels(): Promise<LanguageModelLike[]>;
+  selectChatModels(): PromiseLike<LanguageModelLike[]>;
   createUserMessage(content: string): unknown;
 }
 
 /** Adapter for models contributed through the stable `vscode.lm` API. */
 export function createVscodeLmProvider(
+  config: ProviderConfig,
   dependencies: VscodeLmDependencies,
 ): EditProvider {
+  if (config.kind !== "vscode-lm") {
+    throw new Error("The VS Code language model provider received another provider config.");
+  }
   return {
     async complete(request) {
-      const config = request.config;
-      if (config.kind !== "vscode-lm") {
-        throw new Error("The VS Code language model provider received another provider config.");
-      }
-
       const models = await dependencies.selectChatModels();
       if (!models.length) {
         throw new Error(

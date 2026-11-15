@@ -9,13 +9,8 @@ describe("OpenAI-compatible provider", () => {
         choices: [{ message: { content: "```latex\nBetter text.\n```" } }],
       }),
     }));
-    const provider = createOpenAICompatibleProvider(fetchImpl as never);
-
-    const result = await provider.complete({
-      system: "system",
-      user: "user",
-      signal: new AbortController().signal,
-      config: {
+    const provider = createOpenAICompatibleProvider(
+      {
         kind: "openai-compatible",
         baseUrl: "http://localhost:11434/v1",
         model: "qwen",
@@ -23,10 +18,17 @@ describe("OpenAI-compatible provider", () => {
         maxChars: 12000,
         temperature: 0.2,
       },
+      fetchImpl as never,
+    );
+
+    const result = await provider.complete({
+      system: "system",
+      user: "user",
+      signal: new AbortController().signal,
     });
 
     expect(result).toEqual({ text: "Better text.", label: "qwen" });
-    const [url, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
+    const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe("http://localhost:11434/v1/chat/completions");
     expect((init.headers as Record<string, string>).Authorization).toBe(
       "Bearer secret",
@@ -39,6 +41,13 @@ describe("OpenAI-compatible provider", () => {
 
   it("reports an HTTP failure with a readable message", async () => {
     const provider = createOpenAICompatibleProvider(
+      {
+        kind: "openai-compatible",
+        baseUrl: "https://example.test/v1",
+        model: "model",
+        maxChars: 12000,
+        temperature: 0.2,
+      },
       (async () => ({
         ok: false,
         status: 401,
@@ -51,13 +60,6 @@ describe("OpenAI-compatible provider", () => {
         system: "system",
         user: "user",
         signal: new AbortController().signal,
-        config: {
-          kind: "openai-compatible",
-          baseUrl: "https://example.test/v1",
-          model: "model",
-          maxChars: 12000,
-          temperature: 0.2,
-        },
       }),
     ).rejects.toThrow("401");
   });

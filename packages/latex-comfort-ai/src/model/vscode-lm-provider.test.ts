@@ -17,21 +17,23 @@ describe("VS Code language model provider", () => {
       maxInputTokens: 1000,
       sendRequest,
     };
-    const provider = createVscodeLmProvider({
-      selectChatModels: async () => [model],
-      createUserMessage: (content: string) => content,
-    });
-
-    const result = await provider.complete({
-      system: "system",
-      user: "user",
-      signal: new AbortController().signal,
-      config: {
+    const provider = createVscodeLmProvider(
+      {
         kind: "vscode-lm",
         model: "gpt",
         maxChars: 12000,
         temperature: 0.2,
       },
+      {
+        selectChatModels: async () => [model],
+        createUserMessage: (content: string) => content,
+      },
+    );
+
+    const result = await provider.complete({
+      system: "system",
+      user: "user",
+      signal: new AbortController().signal,
     });
 
     expect(result).toEqual({ text: "Better text.", label: "Test Model" });
@@ -39,22 +41,24 @@ describe("VS Code language model provider", () => {
   });
 
   it("fails clearly when no model is available", async () => {
-    const provider = createVscodeLmProvider({
-      selectChatModels: async () => [],
-      createUserMessage: (content: string) => content,
-    });
+    const provider = createVscodeLmProvider(
+      {
+        kind: "vscode-lm",
+        model: "",
+        maxChars: 12000,
+        temperature: 0.2,
+      },
+      {
+        selectChatModels: async () => [],
+        createUserMessage: (content: string) => content,
+      },
+    );
 
     await expect(
       provider.complete({
         system: "system",
         user: "user",
         signal: new AbortController().signal,
-        config: {
-          kind: "vscode-lm",
-          model: "",
-          maxChars: 12000,
-          temperature: 0.2,
-        },
       }),
     ).rejects.toThrow("language model");
   });

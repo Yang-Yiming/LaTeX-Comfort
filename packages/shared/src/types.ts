@@ -73,6 +73,9 @@ export type HostToWebviewMessage =
 
 export type WebviewToHostMessage =
   | {
+      type: "webviewReady";
+    }
+  | {
       type: "toggleHunk";
       id: number;
       accepted: boolean;
@@ -83,4 +86,7 @@ export type WebviewToHostMessage =
     }
   | {
       type: "reject";
+    }
+  | {
+      type: "configureProvider";
     };

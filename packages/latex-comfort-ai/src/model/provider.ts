@@ -1,9 +1,6 @@
-import type { ProviderConfig } from "./config";
-
 export interface CompletionRequest {
   system: string;
   user: string;
-  config: ProviderConfig;
   signal: AbortSignal;
 }
 

@@ -7,7 +7,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "pnpm -r typecheck",
-    "build": "pnpm -r build",
+    "build": "pnpm -r build && pnpm --filter latex-comfort-ai build:webview",
     "build:core": "pnpm --filter latex-comfort build",
     "build:ai": "pnpm --filter latex-comfort-ai build",
     "build:webview": "pnpm --filter latex-comfort-ai build:webview"

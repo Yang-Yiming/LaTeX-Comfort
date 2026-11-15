@@ -1,0 +1,292 @@
+:root {
+  color-scheme: light dark;
+  --surface: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+  --surface-soft: color-mix(in srgb, var(--vscode-foreground) 5%, transparent);
+  --surface-hover: color-mix(in srgb, var(--vscode-foreground) 9%, transparent);
+  --border: var(--vscode-widget-border, color-mix(in srgb, var(--vscode-foreground) 16%, transparent));
+  --ink: var(--vscode-foreground);
+  --muted: var(--vscode-descriptionForeground, var(--vscode-foreground));
+  --danger: var(--vscode-errorForeground, #f14c4c);
+  --success: var(--vscode-charts-green, #3fb950);
+  --success-soft: color-mix(in srgb, var(--success) 18%, transparent);
+  --accent: var(--vscode-focusBorder, var(--vscode-button-background));
+  --button: var(--vscode-button-background);
+  --button-ink: var(--vscode-button-foreground);
+  --button-hover: var(--vscode-button-hoverBackground, var(--button));
+  --ui-font: var(--vscode-font-family);
+  --code-font: var(--vscode-editor-font-family, var(--ui-font));
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--vscode-editor-background);
+  color: var(--ink);
+  font-family: var(--ui-font);
+  font-size: var(--vscode-font-size, 13px);
+}
+
+button {
+  font: inherit;
+}
+
+.review-shell {
+  width: min(760px, 100%);
+  margin: 0 auto;
+  padding: 18px;
+}
+
+.review-card {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.16);
+  animation: card-in 180ms ease-out both;
+}
+
+@keyframes card-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+
+.review-header {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
+.review-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.mode-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.error-pill {
+  background: color-mix(in srgb, var(--danger) 16%, transparent);
+  color: var(--danger);
+}
+
+.instruction {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.review-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.review-meta span + span::before {
+  content: "·";
+  margin-right: 10px;
+  opacity: 0.6;
+}
+
+.inline-diff {
+  padding: 2px 4px;
+  border-radius: 8px;
+  color: var(--ink);
+  font-family: var(--code-font);
+  font-size: var(--vscode-editor-font-size, 14px);
+  line-height: 1.75;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.inline-edit {
+  border-radius: 4px;
+  outline: none;
+  transition: background-color 120ms ease;
+}
+
+.inline-edit[role="button"] {
+  cursor: pointer;
+}
+
+.inline-edit[role="button"]:hover,
+.inline-edit[role="button"]:focus-visible {
+  background: var(--surface-hover);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.inline-edit del {
+  color: var(--muted);
+  text-decoration-color: var(--danger);
+  text-decoration-line: line-through;
+  text-decoration-thickness: 1px;
+}
+
+.inline-edit ins {
+  margin-inline: 1px;
+  padding-inline: 3px;
+  border-radius: 3px;
+  background: var(--success-soft);
+  color: var(--success);
+  text-decoration: none;
+}
+
+.inline-edit .kept {
+  text-decoration: underline dashed var(--muted);
+  text-underline-offset: 4px;
+}
+
+.inline-edit .caret {
+  color: var(--muted);
+}
+
+.review-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.primary-action,
+.quiet-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  padding: 5px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.primary-action {
+  border: 1px solid transparent;
+  background: var(--button);
+  color: var(--button-ink);
+  font-weight: 600;
+}
+
+.primary-action:hover:not(:disabled) {
+  background: var(--button-hover);
+}
+
+.primary-action:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.quiet-action {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--ink);
+}
+
+.quiet-action:hover {
+  background: var(--surface-hover);
+}
+
+kbd {
+  color: inherit;
+  font-family: var(--ui-font);
+  font-size: 10px;
+  opacity: 0.72;
+}
+
+.skeleton {
+  display: grid;
+  gap: 10px;
+  padding: 4px;
+}
+
+.skeleton span {
+  height: 12px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    var(--surface-soft),
+    var(--surface-hover),
+    var(--surface-soft)
+  );
+  background-size: 200% 100%;
+  animation: skeleton 1.4s linear infinite;
+}
+
+.skeleton span:nth-child(1) {
+  width: 92%;
+}
+
+.skeleton span:nth-child(2) {
+  width: 100%;
+}
+
+.skeleton span:nth-child(3) {
+  width: 61%;
+}
+
+@keyframes skeleton {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.error-card p {
+  margin: 0;
+  color: var(--ink);
+  line-height: 1.6;
+}
+
+@media (max-width: 420px) {
+  .review-shell {
+    padding: 10px;
+  }
+
+  .review-card {
+    padding: 14px;
+  }
+
+  .review-meta {
+    width: 100%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

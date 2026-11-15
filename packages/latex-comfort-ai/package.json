@@ -22,5 +22,98 @@
     "@latex-comfort/shared": "workspace:*",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
+  },
+  "extensionDependencies": [
+    "latex-comfort-dev.latex-comfort"
+  ],
+  "categories": [
+    "AI",
+    "Programming Languages",
+    "Other"
+  ],
+  "keywords": [
+    "latex",
+    "tex",
+    "ai",
+    "rewrite",
+    "proofread",
+    "selection",
+    "writing"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "latexComfort.ai.editSelection",
+        "title": "LaTeX Comfort AI: Edit Selection\u2026",
+        "category": "LaTeX Comfort AI"
+      },
+      {
+        "command": "latexComfort.ai.configureProvider",
+        "title": "LaTeX Comfort AI: Configure Provider",
+        "category": "LaTeX Comfort AI"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "latexComfort.ai.editSelection",
+          "when": "editorHasSelection && !editorReadonly && editorTextFocus",
+          "group": "navigation@100"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "latexComfort.ai.editSelection"
+        },
+        {
+          "command": "latexComfort.ai.configureProvider"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "latexComfort.ai.editSelection",
+        "key": "ctrl+alt+k",
+        "mac": "cmd+alt+k",
+        "when": "editorHasSelection && !editorReadonly && editorTextFocus"
+      }
+    ],
+    "configuration": {
+      "title": "LaTeX Comfort AI",
+      "properties": {
+        "latexComfort.ai.provider": {
+          "type": "string",
+          "enum": [
+            "vscode-lm",
+            "openai-compatible"
+          ],
+          "default": "vscode-lm",
+          "description": "Provider used for selection edits."
+        },
+        "latexComfort.ai.baseUrl": {
+          "type": "string",
+          "default": "https://api.openai.com/v1",
+          "description": "OpenAI-compatible base URL, without /chat/completions."
+        },
+        "latexComfort.ai.model": {
+          "type": "string",
+          "default": "",
+          "description": "Model name. For vscode-lm this can be a model id or family; empty uses the first available model."
+        },
+        "latexComfort.ai.maxChars": {
+          "type": "number",
+          "default": 12000,
+          "minimum": 1,
+          "description": "Maximum selected characters for one AI edit."
+        },
+        "latexComfort.ai.temperature": {
+          "type": "number",
+          "default": 0.2,
+          "minimum": 0,
+          "maximum": 2,
+          "description": "Sampling temperature for OpenAI-compatible providers."
+        }
+      }
+    }
   }
 }
