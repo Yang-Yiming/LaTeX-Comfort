@@ -1,6 +1,6 @@
 # LaTeX Comfort AI Inline Edit Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Ship the first working AI selection-edit feature with local diff review and configurable providers.
 
@@ -44,11 +44,11 @@
 - Produces: `SelectionContext`, `EditMode`, `Hunk`, `ReviewMessage`, `ReviewReadyState`
 - Produces: `PROVIDERS`, `DEFAULT_PROVIDER_SETTINGS`
 
-- [ ] Write tests for stable command IDs, provider enum and default settings.
-- [ ] Run tests and verify they fail because modules do not exist.
-- [ ] Add shared package and workspace configuration.
-- [ ] Run tests and verify they pass.
-- [ ] Commit.
+- [x] Write tests for stable command IDs, provider enum and default settings.
+- [x] Run tests and verify they fail because modules do not exist.
+- [x] Add shared package and workspace configuration.
+- [x] Run tests and verify they pass.
+- [x] Commit.
 
 ### Task 2: Core extension API
 
@@ -64,11 +64,11 @@
 - Produces: `LatexComfortApi { apiVersion: 1; getSelectionContext(editor): SelectionContext }`
 - Consumes: `SelectionContext` from `@latex-comfort/shared`
 
-- [ ] Write a failing test for a non-empty selection context containing URI, range, text, language id and document version.
-- [ ] Run test and verify failure.
-- [ ] Implement the API and activation export.
-- [ ] Run tests and verify pass.
-- [ ] Commit.
+- [x] Write a failing test for a non-empty selection context containing URI, range, text, language id and document version.
+- [x] Run test and verify failure.
+- [x] Implement the API and activation export.
+- [x] Run tests and verify pass.
+- [x] Commit.
 
 ### Task 3: Diff engine
 
@@ -85,14 +85,14 @@
 - Produces: `diffHunks(original, proposed): Hunk[]`
 - Produces: `applyHunks(original, selected): string`
 
-- [ ] Write failing tests for LaTeX command atomicity, CJK segmentation and plain word changes.
-- [ ] Implement tokenization minimally.
-- [ ] Write failing tests for ordered non-overlapping hunks and unchanged text producing no hunks.
-- [ ] Implement token-level LCS diff and hunk grouping.
-- [ ] Write failing tests for accepting all, none and selected hunks.
-- [ ] Implement hunk application.
-- [ ] Run tests and verify pass.
-- [ ] Commit.
+- [x] Write failing tests for LaTeX command atomicity, CJK segmentation and plain word changes.
+- [x] Implement tokenization minimally.
+- [x] Write failing tests for ordered non-overlapping hunks and unchanged text producing no hunks.
+- [x] Implement token-level LCS diff and hunk grouping.
+- [x] Write failing tests for accepting all, none and selected hunks.
+- [x] Implement hunk application.
+- [x] Run tests and verify pass.
+- [x] Commit.
 
 ### Task 4: Provider configuration and prompt cleanup
 
@@ -111,12 +111,12 @@
 - Produces: `buildEditPrompt(request): { system, user }`
 - Produces: `cleanModelReply(reply): string`
 
-- [ ] Write failing tests for vscode-lm and OpenAI-compatible configuration.
-- [ ] Implement config validation.
-- [ ] Write failing tests for replacement-only prompt and fenced reply cleanup.
-- [ ] Implement prompt and cleanup.
-- [ ] Run tests and verify pass.
-- [ ] Commit.
+- [x] Write failing tests for vscode-lm and OpenAI-compatible configuration.
+- [x] Implement config validation.
+- [x] Write failing tests for replacement-only prompt and fenced reply cleanup.
+- [x] Implement prompt and cleanup.
+- [x] Run tests and verify pass.
+- [x] Commit.
 
 ### Task 5: Provider adapters
 
@@ -130,11 +130,11 @@
 - Produces: `EditProvider.complete(request, token): Promise<{ text, label }>`
 - Consumes: `ProviderConfig`, `buildEditPrompt`, `cleanModelReply`
 
-- [ ] Write failing adapter tests with injected dependencies.
-- [ ] Implement OpenAI-compatible request and response parsing.
-- [ ] Implement VS Code language model adapter.
-- [ ] Run tests and verify pass.
-- [ ] Commit.
+- [x] Write failing adapter tests with injected dependencies.
+- [x] Implement OpenAI-compatible request and response parsing.
+- [x] Implement VS Code language model adapter.
+- [x] Run tests and verify pass.
+- [x] Commit.
 
 ### Task 6: Session controller and commands
 
@@ -150,11 +150,11 @@
 - Produces: `isSessionStale(session, document): boolean`
 - Produces: command handlers and activation.
 
-- [ ] Write failing tests for session creation, stale detection and accepted-hunk text.
-- [ ] Implement session model.
-- [ ] Wire command registration, QuickPick and InputBox.
-- [ ] Run tests and typecheck.
-- [ ] Commit.
+- [x] Write failing tests for session creation, stale detection and accepted-hunk text.
+- [x] Implement session model.
+- [x] Wire command registration, QuickPick and InputBox.
+- [x] Run tests and typecheck.
+- [x] Commit.
 
 ### Task 7: Lattice-inspired Webview review
 
@@ -172,11 +172,11 @@
 - Produces: singleton review panel with `showLoading`, `showReady`, `showError`, `close`
 - Webview messages: `toggleHunk`, `accept`, `reject`
 
-- [ ] Write failing tests for message protocol guards.
-- [ ] Implement protocol guards.
-- [ ] Build the panel and React UI.
-- [ ] Run webview build.
-- [ ] Commit.
+- [x] Write failing tests for message protocol guards.
+- [x] Implement protocol guards.
+- [x] Build the panel and React UI.
+- [x] Run webview build.
+- [x] Commit.
 
 ### Task 8: Bundle, documentation and verification
 
@@ -186,7 +186,7 @@
 - Create: `THIRD_PARTY_NOTICES.md`
 - Create: `.gitignore`
 
-- [ ] Add extension pack and root documentation.
-- [ ] Run install, tests, typecheck and both builds.
-- [ ] Fix all failures.
-- [ ] Commit.
+- [x] Add extension pack and root documentation.
+- [x] Run install, tests, typecheck and both builds.
+- [x] Fix all failures.
+- [x] Commit.
