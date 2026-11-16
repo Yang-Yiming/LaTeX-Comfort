@@ -12,7 +12,8 @@
   "activationEvents": [
     "onCommand:latexComfort.showCompileProblems",
     "onLanguage:latex",
-    "onLanguage:markdown"
+    "onLanguage:markdown",
+    "onView:latexComfort.papers"
   ],
   "contributes": {
     "commands": [
@@ -20,8 +21,146 @@
         "command": "latexComfort.showCompileProblems",
         "title": "Show Compile Problems",
         "category": "LaTeX Comfort"
+      },
+      {
+        "command": "latexComfort.papers.add",
+        "title": "Add Paper\u2026",
+        "category": "LaTeX Comfort",
+        "icon": "$(add)"
+      },
+      {
+        "command": "latexComfort.papers.refresh",
+        "title": "Refresh Papers",
+        "category": "LaTeX Comfort"
+      },
+      {
+        "command": "latexComfort.papers.search",
+        "title": "Search Papers",
+        "category": "LaTeX Comfort"
+      },
+      {
+        "command": "latexComfort.papers.insertCitation",
+        "title": "Insert Citation",
+        "category": "LaTeX Comfort"
+      },
+      {
+        "command": "latexComfort.papers.openEntry",
+        "title": "Open Bibliography Entry",
+        "category": "LaTeX Comfort"
+      },
+      {
+        "command": "latexComfort.papers.copyKey",
+        "title": "Copy Citation Key",
+        "category": "LaTeX Comfort"
+      },
+      {
+        "command": "latexComfort.papers.openLink",
+        "title": "Open Paper Link",
+        "category": "LaTeX Comfort"
+      },
+      {
+        "command": "latexComfort.papers.selectBibliography",
+        "title": "Select Bibliography",
+        "category": "LaTeX Comfort"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "LaTeX Comfort",
+      "properties": {
+        "latexComfort.papers.bibliographyPath": {
+          "type": "string",
+          "default": "",
+          "description": "Workspace-relative path to the bibliography used by the Papers view. Leave empty to detect it from LaTeX source or the only .bib file."
+        },
+        "latexComfort.papers.contactEmail": {
+          "type": "string",
+          "default": "",
+          "description": "Optional contact email sent to Crossref and arXiv APIs for polite API usage."
+        }
+      }
+    },
+    "views": {
+      "explorer": [
+        {
+          "id": "latexComfort.papers",
+          "name": "Papers",
+          "when": "workspaceFolderCount > 0"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "latexComfort.papers",
+        "contents": "No project bibliography found. [Select Bibliography](command:latexComfort.papers.selectBibliography)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "latexComfort.papers.add",
+          "when": "view == latexComfort.papers",
+          "group": "navigation@1"
+        },
+        {
+          "command": "latexComfort.papers.search",
+          "when": "view == latexComfort.papers",
+          "group": "navigation@2"
+        },
+        {
+          "command": "latexComfort.papers.refresh",
+          "when": "view == latexComfort.papers",
+          "group": "navigation@3"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "latexComfort.papers.insertCitation",
+          "when": "view == latexComfort.papers && viewItem == paper",
+          "group": "inline@1"
+        },
+        {
+          "command": "latexComfort.papers.openEntry",
+          "when": "view == latexComfort.papers && viewItem == paper",
+          "group": "navigation@1"
+        },
+        {
+          "command": "latexComfort.papers.copyKey",
+          "when": "view == latexComfort.papers && viewItem == paper",
+          "group": "navigation@2"
+        },
+        {
+          "command": "latexComfort.papers.openLink",
+          "when": "view == latexComfort.papers && viewItem == paper",
+          "group": "navigation@3"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "latexComfort.papers.add"
+        },
+        {
+          "command": "latexComfort.papers.refresh"
+        },
+        {
+          "command": "latexComfort.papers.search"
+        },
+        {
+          "command": "latexComfort.papers.insertCitation"
+        },
+        {
+          "command": "latexComfort.papers.openEntry"
+        },
+        {
+          "command": "latexComfort.papers.copyKey"
+        },
+        {
+          "command": "latexComfort.papers.openLink"
+        },
+        {
+          "command": "latexComfort.papers.selectBibliography"
+        }
+      ]
+    }
   },
   "scripts": {
     "build": "node esbuild.mjs",

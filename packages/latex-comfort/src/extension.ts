@@ -1,10 +1,12 @@
 import type * as vscode from "vscode";
 import { createCoreApi, type LatexComfortApi } from "./api";
 import { CompileProblemsController } from "./features/compile-problems/controller";
+import { PapersController } from "./features/papers/controller";
 
 export function activate(context: vscode.ExtensionContext): LatexComfortApi {
   const compileProblems = new CompileProblemsController();
-  context.subscriptions.push(...compileProblems.start());
+  const papers = new PapersController();
+  context.subscriptions.push(...compileProblems.start(), ...papers.start());
   return createCoreApi();
 }
 

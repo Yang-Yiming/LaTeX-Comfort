@@ -10,6 +10,8 @@ This repository contains two extensions and one installation bundle:
 
 The first AI feature is an inline selection editor: select text, choose Proofread, Polish or Rewrite, review a word-level diff, then accept chosen changes or discard them.
 
+The core extension also includes a project-scoped Papers view: browse the project bibliography, search it, add papers by DOI/arXiv/title/BibTeX, and insert citations. See `docs/paper-basics.md`.
+
 ## Development
 
 ```bash

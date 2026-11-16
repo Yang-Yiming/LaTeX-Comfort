@@ -19,3 +19,14 @@ export function providerSecretKey(
   if (provider === "vscode-lm") return undefined;
   return SECRET_KEYS.apiKeys[provider];
 }
+
+export const PAPER_COMMANDS = {
+  refresh: "latexComfort.papers.refresh",
+  search: "latexComfort.papers.search",
+  add: "latexComfort.papers.add",
+  insertCitation: "latexComfort.papers.insertCitation",
+  openEntry: "latexComfort.papers.openEntry",
+  copyKey: "latexComfort.papers.copyKey",
+  openLink: "latexComfort.papers.openLink",
+  selectBibliography: "latexComfort.papers.selectBibliography",
+} as const;

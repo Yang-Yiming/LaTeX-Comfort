@@ -19,6 +19,13 @@ The adapted material is:
   `packages/latex-comfort-ai/webview/src/InlineDiff.tsx` and
   `packages/latex-comfort-ai/webview/src/theme.css`, adapted from Lattice's
   review-card workflow and visual treatment for a VS Code Webview
+- `packages/latex-comfort/src/features/papers/bibtex.ts`, adapted from
+  the BibTeX span parser and value expansion in Lattice's
+  `src/papers/bib-document.ts` for read-only bibliography indexing
+- `packages/latex-comfort/src/features/papers/model.ts`,
+  `citation-key.ts` and `edit.ts`, adapted from Lattice's paper record
+  extraction, citation-key generation and bibliography edit helpers in
+  `src/papers/bib-document.ts` and `src/papers/bib-entry.ts`
 - `packages/latex-comfort/src/features/compile-problems/model.ts`,
   `picker.ts`, `status.ts` and `controller.ts`, adapted from the diagnostic
   grouping, counting and navigation behavior in Lattice's

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   COMMANDS,
   DEFAULT_PROVIDER_SETTINGS,
+  PAPER_COMMANDS,
   PROVIDERS,
   SECRET_KEYS,
   providerSecretKey,
@@ -16,6 +17,13 @@ describe("shared contracts", () => {
     expect(Object.values(COMMANDS).every((id) => id.startsWith("latexComfort.ai."))).toBe(
       true,
     );
+  });
+
+  it("keeps paper command ids stable and namespaced", () => {
+    expect(PAPER_COMMANDS.refresh).toBe("latexComfort.papers.refresh");
+    expect(PAPER_COMMANDS.search).toBe("latexComfort.papers.search");
+    expect(PAPER_COMMANDS.insertCitation).toBe("latexComfort.papers.insertCitation");
+    expect(Object.values(PAPER_COMMANDS).every((id) => id.startsWith("latexComfort.papers."))).toBe(true);
   });
 
   it("offers the supported providers", () => {
