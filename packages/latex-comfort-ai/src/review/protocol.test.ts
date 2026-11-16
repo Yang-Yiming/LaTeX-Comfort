@@ -8,13 +8,13 @@ describe("parseWebviewMessage", () => {
     });
   });
 
-  it("accepts hunk toggles and bounded acceptance lists", () => {
+  it("accepts hunk toggles and the controller-owned acceptance action", () => {
     expect(
       parseWebviewMessage({ type: "toggleHunk", id: 2, accepted: true }),
     ).toEqual({ type: "toggleHunk", id: 2, accepted: true });
-    expect(parseWebviewMessage({ type: "accept", acceptedIds: [0, 2] })).toEqual({
-      type: "accept",
-      acceptedIds: [0, 2],
+    expect(parseWebviewMessage({ type: "accept" })).toEqual({ type: "accept" });
+    expect(parseWebviewMessage({ type: "openSidebar" })).toEqual({
+      type: "openSidebar",
     });
   });
 
@@ -25,7 +25,6 @@ describe("parseWebviewMessage", () => {
   });
 
   it("rejects malformed messages", () => {
-    expect(parseWebviewMessage({ type: "accept", acceptedIds: ["0"] })).toBeNull();
     expect(parseWebviewMessage({ type: "toggleHunk", id: -1, accepted: true })).toBeNull();
     expect(parseWebviewMessage({ type: "nope" })).toBeNull();
   });

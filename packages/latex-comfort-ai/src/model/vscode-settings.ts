@@ -9,8 +9,19 @@ import { createVscodeLmProvider } from "./vscode-lm-provider";
 import { resolveProviderConfig, type ProviderConfig } from "./config";
 import { getProviderPreset } from "./presets";
 import { readProviderApiKey, storeProviderApiKey } from "./secrets";
+import {
+  normalizeReviewPresentation,
+  type ReviewPresentationSetting,
+} from "../review/presentation";
 
 const SECTION = "latexComfort.ai";
+
+export function readReviewPresentation(): ReviewPresentationSetting {
+  const config = vscode.workspace.getConfiguration(SECTION);
+  return normalizeReviewPresentation(
+    config.get<string>("review.presentation", "auto"),
+  );
+}
 
 export function readProviderSettings(): ProviderSettings {
   const config = vscode.workspace.getConfiguration(SECTION);

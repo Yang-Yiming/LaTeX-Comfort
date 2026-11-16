@@ -14,8 +14,14 @@ export function parseWebviewMessage(
   if (value.type === "webviewReady") {
     return { type: "webviewReady" };
   }
+  if (value.type === "accept") {
+    return { type: "accept" };
+  }
   if (value.type === "reject") {
     return { type: "reject" };
+  }
+  if (value.type === "openSidebar") {
+    return { type: "openSidebar" };
   }
   if (value.type === "configureProvider") {
     return { type: "configureProvider" };
@@ -26,13 +32,6 @@ export function parseWebviewMessage(
     typeof value.accepted === "boolean"
   ) {
     return { type: "toggleHunk", id: value.id, accepted: value.accepted };
-  }
-  if (
-    value.type === "accept" &&
-    Array.isArray(value.acceptedIds) &&
-    value.acceptedIds.every(isHunkId)
-  ) {
-    return { type: "accept", acceptedIds: [...new Set(value.acceptedIds)] };
   }
   return null;
 }

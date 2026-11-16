@@ -10,7 +10,12 @@ import { vscode } from "./vscode";
 type UiState =
   | { status: "idle" }
   | { status: "loading"; mode: EditMode; instruction?: string }
-  | { status: "ready"; state: ReviewReadyState }
+  | {
+      status: "ready";
+      state: ReviewReadyState;
+      selectedHunkIds: readonly number[];
+      canOpenSidebar: boolean;
+    }
   | { status: "error"; message: string; canConfigure: boolean };
 
 const MODE_LABEL: Record<EditMode, string> = {
@@ -21,7 +26,6 @@ const MODE_LABEL: Record<EditMode, string> = {
 
 export function App() {
   const [state, setState] = useState<UiState>({ status: "idle" });
-  const [rejected, setRejected] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     const onMessage = (event: MessageEvent<HostToWebviewMessage>) => {
@@ -32,10 +36,13 @@ export function App() {
           mode: message.mode,
           ...(message.instruction ? { instruction: message.instruction } : {}),
         });
-        setRejected(new Set());
       } else if (message.type === "ready") {
-        setState({ status: "ready", state: message.state });
-        setRejected(new Set());
+        setState({
+          status: "ready",
+          state: message.state,
+          selectedHunkIds: message.selectedHunkIds,
+          canOpenSidebar: message.canOpenSidebar === true,
+        });
       } else if (message.type === "error") {
         setState({
           status: "error",
@@ -50,19 +57,24 @@ export function App() {
   }, []);
 
   const ready = state.status === "ready" ? state.state : null;
-  const kept = useMemo(
-    () => (ready ? ready.hunks.filter((hunk) => !rejected.has(hunk.id)).length : 0),
-    [ready, rejected],
+  const selected = useMemo(
+    () => new Set(state.status === "ready" ? state.selectedHunkIds : []),
+    [state],
   );
+  const rejected = useMemo(
+    () =>
+      new Set(
+        ready
+          ? ready.hunks.filter((hunk) => !selected.has(hunk.id)).map((hunk) => hunk.id)
+          : [],
+      ),
+    [ready, selected],
+  );
+  const kept = ready ? ready.hunks.length - rejected.size : 0;
 
   const accept = () => {
-    if (!ready) return;
-    vscode.postMessage({
-      type: "accept",
-      acceptedIds: ready.hunks
-        .filter((hunk) => !rejected.has(hunk.id))
-        .map((hunk) => hunk.id),
-    });
+    if (!ready || kept === 0) return;
+    vscode.postMessage({ type: "accept" });
   };
 
   useEffect(() => {
@@ -78,15 +90,9 @@ export function App() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [ready, rejected]);
+  }, [ready, kept]);
 
   const toggle = (id: number, accepted: boolean) => {
-    setRejected((current) => {
-      const next = new Set(current);
-      if (accepted) next.delete(id);
-      else next.add(id);
-      return next;
-    });
     vscode.postMessage({ type: "toggleHunk", id, accepted });
   };
 
@@ -142,6 +148,15 @@ export function App() {
             >
               Discard <kbd>Esc</kbd>
             </button>
+            {state.status === "ready" && state.canOpenSidebar ? (
+              <button
+                type="button"
+                className="quiet-action"
+                onClick={() => vscode.postMessage({ type: "openSidebar" })}
+              >
+                Open full review
+              </button>
+            ) : null}
           </footer>
         </section>
       ) : null}

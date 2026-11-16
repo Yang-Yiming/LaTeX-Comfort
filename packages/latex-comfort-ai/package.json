@@ -44,7 +44,7 @@
     "commands": [
       {
         "command": "latexComfort.ai.editSelection",
-        "title": "LaTeX Comfort AI: Edit Selection\u2026",
+        "title": "LaTeX Comfort AI: Edit Selection…",
         "category": "LaTeX Comfort AI"
       },
       {
@@ -114,6 +114,16 @@
           "minimum": 0,
           "maximum": 2,
           "description": "Sampling temperature for OpenAI-compatible providers."
+        },
+        "latexComfort.ai.review.presentation": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "sidePanel",
+            "inline"
+          ],
+          "default": "auto",
+          "description": "Where to review AI edits. Auto keeps short selections inline and opens long reviews beside the editor."
         }
       }
     }

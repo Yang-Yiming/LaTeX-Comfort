@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ReviewReadyState, SelectionContext } from "@latex-comfort/shared";
+import type { ReviewViewState } from "../review/state";
 import { EditController } from "./controller";
 
 const selection: SelectionContext = {
@@ -14,14 +15,11 @@ const selection: SelectionContext = {
 };
 
 function setup(proposed = "The fast brown fox") {
-  const ready: ReviewReadyState[] = [];
-  const errors: string[] = [];
+  const states: ReviewViewState[] = [];
   const applied: string[] = [];
-  const panel = {
-    showLoading: vi.fn(),
-    showReady: vi.fn((state: ReviewReadyState) => ready.push(state)),
-    showError: vi.fn((message: string) => errors.push(message)),
-    close: vi.fn(),
+  const surface = {
+    render: vi.fn((state: ReviewViewState) => states.push(state)),
+    dispose: vi.fn(),
   };
   const controller = new EditController({
     provider: async () => ({
@@ -30,7 +28,7 @@ function setup(proposed = "The fast brown fox") {
         complete: async () => ({ text: proposed, label: "test-model" }),
       },
     }),
-    panel,
+    surface,
     currentSnapshot: async () => ({
       uri: selection.uri,
       version: 1,
@@ -41,37 +39,63 @@ function setup(proposed = "The fast brown fox") {
       return true;
     },
   });
-  return { controller, panel, ready, errors, applied };
+  return { controller, surface, states, applied };
 }
 
 describe("EditController", () => {
   it("shows a local diff after the provider responds", async () => {
-    const { controller, panel, ready } = setup();
+    const { controller, states } = setup();
     await controller.start(selection, "polish", "Make it faster.", {
       before: "",
       after: "",
     });
 
-    expect(panel.showLoading).toHaveBeenCalledWith("polish", "Make it faster.");
-    expect(ready[0]?.hunks).toEqual([
+    const loading = states[0];
+    const ready = states[1];
+    expect(loading).toMatchObject({
+      status: "loading",
+      mode: "polish",
+      instruction: "Make it faster.",
+    });
+    expect(ready?.status).toBe("ready");
+    if (ready?.status !== "ready") throw new Error("expected ready state");
+    expect(ready.review.proposed).toBe("The fast brown fox");
+    expect(ready.review.hunks).toEqual([
       { id: 0, from: 4, to: 9, insert: "fast" },
     ]);
-    expect(ready[0]?.providerLabel).toBe("test-provider");
-    expect(ready[0]?.modelLabel).toBe("test-model");
+    expect(ready.review.providerLabel).toBe("test-provider");
+    expect(ready.review.modelLabel).toBe("test-model");
+    expect(ready.selectedHunkIds).toEqual([0]);
   });
 
-  it("applies only accepted hunks and closes the review", async () => {
-    const { controller, panel, applied } = setup();
+  it("keeps selected hunks in the controller", async () => {
+    const { controller, states } = setup();
     await controller.start(selection, "polish", "", { before: "", after: "" });
-    await controller.accept([0]);
 
-    expect(applied).toEqual(["The fast brown fox"]);
-    expect(panel.close).toHaveBeenCalledOnce();
+    controller.toggleHunk(0, false);
+
+    const ready = states.at(-1);
+    expect(ready?.status).toBe("ready");
+    if (ready?.status !== "ready") throw new Error("expected ready state");
+    expect(ready.selectedHunkIds).toEqual([]);
+  });
+
+  it("applies only the hunks currently selected in the controller", async () => {
+    const { controller, applied } = setup("The fast brown cat");
+    await controller.start(selection, "polish", "", { before: "", after: "" });
+
+    const ready = controller.state;
+    if (ready.status !== "ready" || ready.review.hunks.length < 2) {
+      throw new Error("expected multiple hunks");
+    }
+    controller.toggleHunk(ready.review.hunks[0]!.id, false);
+    await controller.accept();
+
+    expect(applied).toEqual(["The quick brown cat"]);
   });
 
   it("refuses to apply when the document changed", async () => {
-    const ready: ReviewReadyState[] = [];
-    const errors: string[] = [];
+    const states: ReviewViewState[] = [];
     const applyEdit = vi.fn(async () => true);
     const controller = new EditController({
       provider: async () => ({
@@ -80,11 +104,9 @@ describe("EditController", () => {
           complete: async () => ({ text: "The fast brown fox", label: "model" }),
         },
       }),
-      panel: {
-        showLoading: vi.fn(),
-        showReady: vi.fn((state: ReviewReadyState) => ready.push(state)),
-        showError: vi.fn((message: string) => errors.push(message)),
-        close: vi.fn(),
+      surface: {
+        render: vi.fn((state: ReviewViewState) => states.push(state)),
+        dispose: vi.fn(),
       },
       currentSnapshot: async () => ({
         uri: selection.uri,
@@ -95,9 +117,10 @@ describe("EditController", () => {
     });
 
     await controller.start(selection, "polish", "", { before: "", after: "" });
-    await controller.accept([0]);
+    await controller.accept();
 
     expect(applyEdit).not.toHaveBeenCalled();
-    expect(errors.at(-1)).toContain("changed");
+    expect(states.at(-1)).toMatchObject({ status: "error" });
+    expect((states.at(-1) as { message?: string }).message).toContain("changed");
   });
 });

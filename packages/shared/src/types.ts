@@ -69,6 +69,8 @@ export type HostToWebviewMessage =
   | {
       type: "ready";
       state: ReviewReadyState;
+      selectedHunkIds: number[];
+      canOpenSidebar?: boolean;
     }
   | {
       type: "error";
@@ -87,10 +89,12 @@ export type WebviewToHostMessage =
     }
   | {
       type: "accept";
-      acceptedIds: number[];
     }
   | {
       type: "reject";
+    }
+  | {
+      type: "openSidebar";
     }
   | {
       type: "configureProvider";
