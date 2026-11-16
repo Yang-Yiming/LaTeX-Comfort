@@ -23,6 +23,7 @@ export function providerSecretKey(
 export const PAPER_COMMANDS = {
   refresh: "latexComfort.papers.refresh",
   search: "latexComfort.papers.search",
+  filter: "latexComfort.papers.filter",
   add: "latexComfort.papers.add",
   insertCitation: "latexComfort.papers.insertCitation",
   openEntry: "latexComfort.papers.openEntry",

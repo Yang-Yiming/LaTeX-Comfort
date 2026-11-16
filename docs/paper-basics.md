@@ -6,12 +6,17 @@ LaTeX Comfort's Papers view is a project-scoped bibliography explorer. It reads 
 
 - Lists the entries in the project's primary `.bib` file.
 - Searches by title, author, citation key, DOI, arXiv id or URL.
+- Completes citation keys while typing common `\cite`-family commands.
+- Shows paper metadata when hovering a citation key.
+- Jumps from a citation key to its `.bib` entry with Go to Definition.
 - Inserts `\cite{key}` at the caret or over the active selection.
 - Opens a citation's bibliography entry at its source line.
 - Copies citation keys.
 - Opens DOI, arXiv and URL targets in the browser.
 - Adds one paper by DOI, DOI URL, arXiv id/URL, title or BibTeX.
 - Detects duplicate DOI, arXiv id, citation key and exact title/year matches.
+- Counts citation use across the workspace folder's `.tex` and `.ltx` files.
+- Filters Papers to all, cited or uncited entries.
 - Preserves the existing bibliography and appends through VS Code's undoable edit API.
 
 ## Finding the bibliography
@@ -25,10 +30,13 @@ Papers chooses the primary bibliography in this order:
 
 If more than one `.bib` file exists and none is named, run **LaTeX Comfort: Select Bibliography**.
 
+In a multi-root workspace, Papers follows the workspace folder of the active editor. **Select Bibliography** lists `.bib` files from every root and stores the choice in the selected folder's workspace settings.
+
 ## Commands
 
 - **LaTeX Comfort: Add Paper…**
 - **LaTeX Comfort: Search Papers**
+- **LaTeX Comfort: Filter Papers**
 - **LaTeX Comfort: Insert Citation**
 - **LaTeX Comfort: Open Bibliography Entry**
 - **LaTeX Comfort: Copy Citation Key**
@@ -43,13 +51,14 @@ If more than one `.bib` file exists and none is named, run **LaTeX Comfort: Sele
 "latexComfort.papers.contactEmail": ""
 ```
 
-`bibliographyPath` is workspace-relative. `contactEmail` is optional and is sent to Crossref and arXiv for polite API usage.
+`bibliographyPath` is workspace-folder-relative. `contactEmail` is optional and is sent to Crossref and arXiv for polite API usage.
 
 ## Current limits
 
-This first release deliberately does not include:
+Current limits:
 
 - full-text downloads or a PDF/Markdown reader;
+- citation-key rename across source files;
 - paper notes;
 - Zotero database browsing;
 - linked-library synchronization;

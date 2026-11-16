@@ -15,6 +15,7 @@ const paper: PaperRecord = {
   path: "references.bib",
   line: 3,
   haystack: "vaswani2017attention attention is all you need ashish vaswani 2017 neurips",
+  uses: 4,
 };
 
 describe("paper tree rows", () => {
@@ -23,7 +24,7 @@ describe("paper tree rows", () => {
 
     expect(item).toMatchObject({
       label: "Attention Is All You Need",
-      description: "Vaswani · 2017",
+      description: "Vaswani · 2017 · 4×",
       contextValue: "paper",
       command: {
         command: "latexComfort.papers.insertCitation",
@@ -35,7 +36,7 @@ describe("paper tree rows", () => {
   });
 
   it("keeps a long author/year row within the compact description", () => {
-    const item = paperTreeItem({ ...paper, firstAuthor: "", year: "" }, 1);
+    const item = paperTreeItem({ ...paper, firstAuthor: "", year: "", uses: undefined }, 1);
 
     expect(item.description).toBeUndefined();
     expect(item.tooltip).toContain("NeurIPS");
@@ -48,8 +49,8 @@ describe("paper command rows", () => {
 
     expect(item).toMatchObject({
       label: "Attention Is All You Need",
-      description: "Vaswani · 2017",
-      detail: "vaswani2017attention · NeurIPS · references.bib:3",
+      description: "Vaswani · 2017 · 4×",
+      detail: "vaswani2017attention · NeurIPS · 4× · references.bib:3",
       paper,
     });
   });

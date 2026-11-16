@@ -22,6 +22,7 @@ describe("shared contracts", () => {
   it("keeps paper command ids stable and namespaced", () => {
     expect(PAPER_COMMANDS.refresh).toBe("latexComfort.papers.refresh");
     expect(PAPER_COMMANDS.search).toBe("latexComfort.papers.search");
+    expect(PAPER_COMMANDS.filter).toBe("latexComfort.papers.filter");
     expect(PAPER_COMMANDS.insertCitation).toBe("latexComfort.papers.insertCitation");
     expect(Object.values(PAPER_COMMANDS).every((id) => id.startsWith("latexComfort.papers."))).toBe(true);
   });

@@ -21,6 +21,7 @@ export type PaperRecord = {
   path: string;
   line: number;
   haystack: string;
+  uses?: number;
 };
 
 export type PaperIndex = {

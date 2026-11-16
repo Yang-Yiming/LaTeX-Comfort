@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { PAPER_COMMANDS } from "@latex-comfort/shared";
 import { addConfirmationText, candidateQuickPick } from "./add-flow";
 import { uniqueCitationKey } from "./citation-key";
+import { citationCompletionContext, citationKeyAtPosition, citationUseCounts } from "./citations";
 import { appendEntryText, citationText, renameBibtexKey } from "./edit";
 import { chooseBibliography } from "./locator";
 import { buildPaperRecords, findDuplicate, type PaperRecord } from "./model";
@@ -17,6 +18,9 @@ import { paperLinkTarget, paperTreeItem, searchPaperItem } from "./tree";
 
 const VIEW_ID = "latexComfort.papers";
 const CONFIG_SECTION = "latexComfort.papers";
+const EXCLUDE = "**/{node_modules,.git}/**";
+
+type PaperFilter = "all" | "cited" | "uncited";
 
 class PaperTreeItem extends vscode.TreeItem {
   constructor(
@@ -43,7 +47,9 @@ export class PapersController implements vscode.TreeDataProvider<PaperTreeItem>,
 
   private treeView: vscode.TreeView<PaperTreeItem> | undefined;
   private bibliographyUri: vscode.Uri | undefined;
+  private currentFolder: vscode.WorkspaceFolder | undefined;
   private papers: PaperRecord[] = [];
+  private filter: PaperFilter = "all";
   private generation = 0;
   private refreshTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -53,21 +59,50 @@ export class PapersController implements vscode.TreeDataProvider<PaperTreeItem>,
       showCollapseAll: false,
     });
 
-    const watcher = vscode.workspace.createFileSystemWatcher("**/*.bib");
+    const bibWatcher = vscode.workspace.createFileSystemWatcher("**/*.bib");
+    const texWatcher = vscode.workspace.createFileSystemWatcher("**/*.{tex,ltx}");
     const disposables: vscode.Disposable[] = [
       this,
       this.treeView,
-      watcher,
-      watcher.onDidCreate(() => this.scheduleRefresh()),
-      watcher.onDidChange(() => this.scheduleRefresh()),
-      watcher.onDidDelete(() => this.scheduleRefresh()),
+      bibWatcher,
+      texWatcher,
+      bibWatcher.onDidCreate(() => this.scheduleRefresh()),
+      bibWatcher.onDidChange(() => this.scheduleRefresh()),
+      bibWatcher.onDidDelete(() => this.scheduleRefresh()),
+      texWatcher.onDidCreate(() => this.scheduleRefresh()),
+      texWatcher.onDidChange(() => this.scheduleRefresh()),
+      texWatcher.onDidDelete(() => this.scheduleRefresh()),
+      vscode.workspace.onDidSaveTextDocument((document) => {
+        if (document.languageId === "latex" || document.fileName.toLowerCase().endsWith(".tex")) {
+          this.scheduleRefresh();
+        }
+      }),
       vscode.window.onDidChangeActiveTextEditor(() => this.scheduleRefresh()),
+      vscode.workspace.onDidChangeWorkspaceFolders(() => this.scheduleRefresh()),
       vscode.workspace.onDidChangeConfiguration((event) => {
         if (event.affectsConfiguration(`${CONFIG_SECTION}.bibliographyPath`)) this.scheduleRefresh();
       }),
+      vscode.languages.registerCompletionItemProvider(
+        { language: "latex" },
+        {
+          provideCompletionItems: (document, position) => this.provideCompletionItems(document, position),
+        },
+        "{",
+        ",",
+        " ",
+      ),
+      vscode.languages.registerHoverProvider(
+        { language: "latex" },
+        { provideHover: (document, position) => this.provideHover(document, position) },
+      ),
+      vscode.languages.registerDefinitionProvider(
+        { language: "latex" },
+        { provideDefinition: (document, position) => this.provideDefinition(document, position) },
+      ),
       vscode.commands.registerCommand(PAPER_COMMANDS.refresh, () => this.refresh()),
       vscode.commands.registerCommand(PAPER_COMMANDS.add, () => this.addPaper()),
       vscode.commands.registerCommand(PAPER_COMMANDS.search, () => this.search()),
+      vscode.commands.registerCommand(PAPER_COMMANDS.filter, () => this.chooseFilter()),
       vscode.commands.registerCommand(PAPER_COMMANDS.insertCitation, (paper?: PaperRecord) => this.insertCitation(paper)),
       vscode.commands.registerCommand(PAPER_COMMANDS.openEntry, (paper?: PaperRecord) => this.openEntry(paper)),
       vscode.commands.registerCommand(PAPER_COMMANDS.copyKey, (paper?: PaperRecord) => this.copyKey(paper)),
@@ -84,12 +119,18 @@ export class PapersController implements vscode.TreeDataProvider<PaperTreeItem>,
   }
 
   getChildren(): PaperTreeItem[] {
-    return this.papers.map((paper, index) => new PaperTreeItem(paper, index));
+    return this.visiblePapers().map((paper, index) => new PaperTreeItem(paper, index));
   }
 
   dispose(): void {
     if (this.refreshTimer) clearTimeout(this.refreshTimer);
     this.changed.dispose();
+  }
+
+  private visiblePapers(): PaperRecord[] {
+    if (this.filter === "cited") return this.papers.filter((paper) => (paper.uses ?? 0) > 0);
+    if (this.filter === "uncited") return this.papers.filter((paper) => (paper.uses ?? 0) === 0);
+    return this.papers;
   }
 
   private scheduleRefresh(): void {
@@ -100,51 +141,103 @@ export class PapersController implements vscode.TreeDataProvider<PaperTreeItem>,
     }, 150);
   }
 
-  private async refresh(): Promise<void> {
+  private async refresh(folderOverride?: vscode.WorkspaceFolder): Promise<void> {
     const generation = ++this.generation;
-    const folder = vscode.workspace.workspaceFolders?.[0];
+    const active = this.activeLatexEditor();
+    const activeFolder = active ? vscode.workspace.getWorkspaceFolder(active.document.uri) : undefined;
+    const folder = folderOverride
+      ?? activeFolder
+      ?? this.currentFolder
+      ?? vscode.workspace.workspaceFolders?.[0];
     if (!folder) {
-      this.setPapers([], undefined, "Open a workspace folder to use Papers.");
+      this.currentFolder = undefined;
+      this.setPapers([], undefined, undefined, "Open a workspace folder to use Papers.");
       return;
     }
+    this.currentFolder = folder;
 
     try {
-      const discovered = (await vscode.workspace.findFiles("**/*.bib", "**/{node_modules,.git}/**", 2000))
-        .map((uri) => vscode.workspace.asRelativePath(uri, false).replace(/\\/g, "/"));
+      const discoveredUris = await vscode.workspace.findFiles(
+        new vscode.RelativePattern(folder, "**/*.bib"),
+        EXCLUDE,
+        2000,
+      );
+      const discovered = discoveredUris.map((uri) => this.relativeToFolder(uri));
       if (generation !== this.generation) return;
 
-      const active = this.activeLatexEditor();
-      const configured = vscode.workspace.getConfiguration(CONFIG_SECTION).get<string>("bibliographyPath") ?? "";
+      const activeInFolder = active && vscode.workspace.getWorkspaceFolder(active.document.uri)?.uri.toString() === folder.uri.toString()
+        ? active
+        : undefined;
+      const configured = vscode.workspace
+        .getConfiguration(CONFIG_SECTION, folder.uri)
+        .get<string>("bibliographyPath") ?? "";
+      const remembered = this.bibliographyUri
+        && vscode.workspace.getWorkspaceFolder(this.bibliographyUri)?.uri.toString() === folder.uri.toString()
+        ? this.relativeToFolder(this.bibliographyUri)
+        : undefined;
       const selected = chooseBibliography({
         configured,
-        activeSource: active?.document.getText(),
-        activePath: active ? vscode.workspace.asRelativePath(active.document.uri, false).replace(/\\/g, "/") : undefined,
-        discovered,
-        remembered: this.bibliographyUri
-          ? vscode.workspace.asRelativePath(this.bibliographyUri, false).replace(/\\/g, "/")
+        activeSource: activeInFolder?.document.getText(),
+        activePath: activeInFolder
+          ? vscode.workspace.asRelativePath(activeInFolder.document.uri, false).replace(/\\/g, "/")
           : undefined,
+        discovered,
+        remembered,
       });
       if (!selected) {
-        this.setPapers([], undefined, "No project bibliography found. Run LaTeX Comfort: Select Bibliography.");
+        this.setPapers([], undefined, folder, "No project bibliography found. Run LaTeX Comfort: Select Bibliography.");
         return;
       }
 
       const uri = vscode.Uri.joinPath(folder.uri, ...selected.split("/"));
       const source = new TextDecoder().decode(await vscode.workspace.fs.readFile(uri));
+      const index = buildPaperRecords(selected, source);
+      const uses = await this.scanCitationUses(folder);
       if (generation !== this.generation) return;
 
-      const index = buildPaperRecords(selected, source);
+      const papers = index.papers.map((paper) => ({
+        ...paper,
+        uses: uses.get(paper.key.toLowerCase()) ?? 0,
+      }));
       const message = index.errors.length
         ? `Could not read ${selected} at line ${index.errors[0]!.line}.`
-        : index.papers.length
+        : papers.length
           ? undefined
           : `No entries in ${selected}.`;
-      this.setPapers(index.papers, uri, message);
+      this.setPapers(papers, uri, folder, message);
     } catch (error) {
       if (generation !== this.generation) return;
       const message = error instanceof Error ? error.message : String(error);
-      this.setPapers([], undefined, `Could not read the bibliography: ${message}`);
+      this.setPapers([], undefined, folder, `Could not read the bibliography: ${message}`);
     }
+  }
+
+  private relativeToFolder(uri: vscode.Uri): string {
+    return vscode.workspace.asRelativePath(uri, false).replace(/\\/g, "/");
+  }
+
+  private async scanCitationUses(folder: vscode.WorkspaceFolder): Promise<Map<string, number>> {
+    const counts = new Map<string, number>();
+    const files = await vscode.workspace.findFiles(
+      new vscode.RelativePattern(folder, "**/*.{tex,ltx}"),
+      EXCLUDE,
+      5000,
+    );
+    for (let start = 0; start < files.length; start += 32) {
+      const texts = await Promise.all(files.slice(start, start + 32).map(async (uri) => {
+        try {
+          return new TextDecoder().decode(await vscode.workspace.fs.readFile(uri));
+        } catch {
+          return "";
+        }
+      }));
+      for (const text of texts) {
+        for (const [key, count] of citationUseCounts(text)) {
+          counts.set(key, (counts.get(key) ?? 0) + count);
+        }
+      }
+    }
+    return counts;
   }
 
   private activeLatexEditor(): vscode.TextEditor | undefined {
@@ -155,13 +248,144 @@ export class PapersController implements vscode.TreeDataProvider<PaperTreeItem>,
       : undefined;
   }
 
-  private setPapers(papers: PaperRecord[], uri: vscode.Uri | undefined, message: string | undefined): void {
+  private setPapers(
+    papers: PaperRecord[],
+    uri: vscode.Uri | undefined,
+    folder: vscode.WorkspaceFolder | undefined,
+    message: string | undefined,
+  ): void {
     this.papers = papers;
     this.bibliographyUri = uri;
+    this.currentFolder = folder;
     if (this.treeView) {
       this.treeView.message = message;
-      this.treeView.description = uri ? vscode.workspace.asRelativePath(uri, false) : undefined;
+      this.updateViewDescription();
     }
+    this.changed.fire(undefined);
+  }
+
+  private updateViewDescription(): void {
+    if (!this.treeView) return;
+    const folder = this.currentFolder;
+    const bibliography = this.bibliographyUri ? this.relativeToFolder(this.bibliographyUri) : "";
+    const filter = this.filter === "all" ? "" : this.filter === "cited" ? "Cited" : "Uncited";
+    const folderLabel = (vscode.workspace.workspaceFolders?.length ?? 0) > 1 && folder ? folder.name : "";
+    this.treeView.description = [folderLabel, bibliography, filter].filter(Boolean).join(" · ") || undefined;
+  }
+
+  private paperByKey(key: string): PaperRecord | undefined {
+    const normalized = key.toLowerCase();
+    return this.papers.find((paper) => paper.key.toLowerCase() === normalized);
+  }
+
+  private async ensureLibraryFor(document: vscode.TextDocument): Promise<boolean> {
+    const folder = vscode.workspace.getWorkspaceFolder(document.uri);
+    if (!folder) return false;
+    if (
+      this.currentFolder?.uri.toString() !== folder.uri.toString()
+      || !this.bibliographyUri
+    ) {
+      await this.refresh(folder);
+    }
+    return Boolean(this.bibliographyUri);
+  }
+
+  private async provideCompletionItems(
+    document: vscode.TextDocument,
+    position: vscode.Position,
+  ): Promise<vscode.CompletionItem[]> {
+    if (!await this.ensureLibraryFor(document)) return [];
+    const prefix = document.lineAt(position.line).text.slice(0, position.character);
+    const context = citationCompletionContext(prefix);
+    if (!context) return [];
+    const query = context.query.toLowerCase();
+    const existing = new Set([...context.existingKeys].map((key) => key.toLowerCase()));
+
+    return this.papers
+      .filter((paper) => !existing.has(paper.key.toLowerCase()))
+      .filter((paper) => !query || paper.haystack.includes(query))
+      .sort((left, right) => {
+        const leftPrefix = left.key.toLowerCase().startsWith(query) ? 0 : 1;
+        const rightPrefix = right.key.toLowerCase().startsWith(query) ? 0 : 1;
+        return leftPrefix - rightPrefix
+          || left.firstAuthor.localeCompare(right.firstAuthor)
+          || right.year.localeCompare(left.year, undefined, { numeric: true })
+          || left.title.localeCompare(right.title);
+      })
+      .map((paper) => {
+        const item = new vscode.CompletionItem(paper.key, vscode.CompletionItemKind.Reference);
+        item.insertText = paper.key;
+        item.filterText = [paper.key, paper.title, paper.authors, paper.year, paper.venue].filter(Boolean).join(" ");
+        item.sortText = `${paper.key.toLowerCase().startsWith(query) ? "0" : "1"}${paper.firstAuthor}${paper.year}${paper.key}`;
+        item.detail = [paper.title, [paper.firstAuthor, paper.year].filter(Boolean).join(" · ")].filter(Boolean).join(" · ");
+        item.documentation = new vscode.MarkdownString([
+          `**${paper.title}**`,
+          "",
+          [paper.authors, paper.year].filter(Boolean).join(" · "),
+          paper.venue,
+          `Citation key: \`${paper.key}\``,
+        ].filter(Boolean).join("\n\n"));
+        item.range = new vscode.Range(
+          position.line,
+          context.replaceFrom,
+          position.line,
+          position.character,
+        );
+        return item;
+      });
+  }
+
+  private async provideHover(
+    document: vscode.TextDocument,
+    position: vscode.Position,
+  ): Promise<vscode.Hover | undefined> {
+    if (!await this.ensureLibraryFor(document)) return;
+    const citation = citationKeyAtPosition(document.getText(), document.offsetAt(position));
+    const paper = citation ? this.paperByKey(citation.key) : undefined;
+    if (!citation || !paper) return;
+    const markdown = new vscode.MarkdownString();
+    markdown.appendMarkdown(`**${paper.title}**\n\n`);
+    if (paper.authors) markdown.appendMarkdown(`${paper.authors}  \n`);
+    if (paper.venue || paper.year) {
+      markdown.appendMarkdown(`${[paper.venue, paper.year].filter(Boolean).join(" · ")}  \n`);
+    }
+    markdown.appendMarkdown(`\nCitation key: \`${paper.key}\`  \n`);
+    if (paper.doi) markdown.appendMarkdown(`DOI: ${paper.doi}  \n`);
+    if (paper.arxivId) markdown.appendMarkdown(`arXiv: ${paper.arxivId}  \n`);
+    markdown.appendMarkdown(`Cited ${paper.uses ?? 0} time${paper.uses === 1 ? "" : "s"} in this project.`);
+    return new vscode.Hover(
+      markdown,
+      new vscode.Range(document.positionAt(citation.start), document.positionAt(citation.end)),
+    );
+  }
+
+  private async provideDefinition(
+    document: vscode.TextDocument,
+    position: vscode.Position,
+  ): Promise<vscode.Location | undefined> {
+    if (!await this.ensureLibraryFor(document) || !this.bibliographyUri) return;
+    const citation = citationKeyAtPosition(document.getText(), document.offsetAt(position));
+    const paper = citation ? this.paperByKey(citation.key) : undefined;
+    if (!paper) return;
+    const line = Math.max(0, paper.line - 1);
+    return new vscode.Location(
+      this.bibliographyUri,
+      new vscode.Range(line, 0, line, 0),
+    );
+  }
+
+  private async chooseFilter(): Promise<void> {
+    const picked = await vscode.window.showQuickPick([
+      { label: "All papers", value: "all" as const },
+      { label: "Cited in this project", value: "cited" as const },
+      { label: "Uncited", value: "uncited" as const },
+    ], {
+      title: "Filter Papers",
+      placeHolder: "Choose which papers to show",
+    });
+    if (!picked) return;
+    this.filter = picked.value;
+    this.updateViewDescription();
     this.changed.fire(undefined);
   }
 
@@ -234,7 +458,9 @@ export class PapersController implements vscode.TreeDataProvider<PaperTreeItem>,
   }
 
   private resolverDeps(controller: AbortController): ResolverDeps {
-    const contactEmail = vscode.workspace.getConfiguration(CONFIG_SECTION).get<string>("contactEmail")?.trim();
+    const contactEmail = this.currentFolder
+      ? vscode.workspace.getConfiguration(CONFIG_SECTION, this.currentFolder.uri).get<string>("contactEmail")?.trim()
+      : vscode.workspace.getConfiguration(CONFIG_SECTION).get<string>("contactEmail")?.trim();
     return {
       fetch: (input, init) => globalThis.fetch(input, init),
       signal: controller.signal,
@@ -306,7 +532,7 @@ export class PapersController implements vscode.TreeDataProvider<PaperTreeItem>,
       if (confirmation !== "Add Paper") return;
 
       if (!this.bibliographyUri) {
-        await this.refresh();
+        await this.refresh(this.currentFolder);
         if (!this.bibliographyUri) {
           void vscode.window.showErrorMessage("Select a project bibliography before adding a paper.");
           return;
@@ -327,7 +553,7 @@ export class PapersController implements vscode.TreeDataProvider<PaperTreeItem>,
         return;
       }
       await document.save();
-      await this.refresh();
+      await this.refresh(this.currentFolder);
 
       const next = await vscode.window.showInformationMessage(
         `Added ${resolved.title}.`,
@@ -357,30 +583,39 @@ export class PapersController implements vscode.TreeDataProvider<PaperTreeItem>,
   }
 
   private async selectBibliography(): Promise<void> {
-    const folder = vscode.workspace.workspaceFolders?.[0];
-    if (!folder) {
+    const folders = vscode.workspace.workspaceFolders ?? [];
+    if (!folders.length) {
       void vscode.window.showErrorMessage("Open a workspace folder first.");
       return;
     }
-    const files = await vscode.workspace.findFiles("**/*.bib", "**/{node_modules,.git}/**", 2000);
-    if (!files.length) {
+    const candidates: Array<{ label: string; description?: string; folder: vscode.WorkspaceFolder; uri: vscode.Uri }> = [];
+    for (const folder of folders) {
+      const files = await vscode.workspace.findFiles(new vscode.RelativePattern(folder, "**/*.bib"), EXCLUDE, 2000);
+      for (const uri of files) {
+        candidates.push({
+          label: this.relativeToFolder(uri),
+          description: folders.length > 1 ? folder.name : undefined,
+          folder,
+          uri,
+        });
+      }
+    }
+    if (!candidates.length) {
       void vscode.window.showInformationMessage("No .bib files were found in this workspace.");
       return;
     }
-    const picked = await vscode.window.showQuickPick(
-      files.map((uri) => ({
-        label: vscode.workspace.asRelativePath(uri, false),
-        uri,
-      })),
-      { title: "Select Bibliography", placeHolder: "Choose the bibliography used by Papers" },
-    );
+    const picked = await vscode.window.showQuickPick(candidates, {
+      title: "Select Bibliography",
+      placeHolder: "Choose the bibliography used by Papers",
+      matchOnDescription: true,
+    });
     if (!picked) return;
-    const relative = vscode.workspace.asRelativePath(picked.uri, false).replace(/\\/g, "/");
-    await vscode.workspace.getConfiguration(CONFIG_SECTION).update(
+    const relative = this.relativeToFolder(picked.uri);
+    await vscode.workspace.getConfiguration(CONFIG_SECTION, picked.folder.uri).update(
       "bibliographyPath",
       relative,
-      vscode.ConfigurationTarget.Workspace,
+      vscode.ConfigurationTarget.WorkspaceFolder,
     );
-    await this.refresh();
+    await this.refresh(picked.folder);
   }
 }

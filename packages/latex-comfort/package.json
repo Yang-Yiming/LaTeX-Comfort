@@ -61,7 +61,14 @@
       {
         "command": "latexComfort.papers.selectBibliography",
         "title": "Select Bibliography",
-        "category": "LaTeX Comfort"
+        "category": "LaTeX Comfort",
+        "icon": "$(folder-opened)"
+      },
+      {
+        "command": "latexComfort.papers.filter",
+        "title": "Filter Papers",
+        "category": "LaTeX Comfort",
+        "icon": "$(filter)"
       }
     ],
     "configuration": {
@@ -70,7 +77,7 @@
         "latexComfort.papers.bibliographyPath": {
           "type": "string",
           "default": "",
-          "description": "Workspace-relative path to the bibliography used by the Papers view. Leave empty to detect it from LaTeX source or the only .bib file."
+          "description": "Workspace-folder-relative path to the bibliography used by the Papers view. Leave empty to detect it from LaTeX source or the only .bib file."
         },
         "latexComfort.papers.contactEmail": {
           "type": "string",
@@ -102,14 +109,24 @@
           "group": "navigation@1"
         },
         {
-          "command": "latexComfort.papers.search",
+          "command": "latexComfort.papers.filter",
           "when": "view == latexComfort.papers",
           "group": "navigation@2"
         },
         {
-          "command": "latexComfort.papers.refresh",
+          "command": "latexComfort.papers.search",
           "when": "view == latexComfort.papers",
           "group": "navigation@3"
+        },
+        {
+          "command": "latexComfort.papers.selectBibliography",
+          "when": "view == latexComfort.papers",
+          "group": "navigation@4"
+        },
+        {
+          "command": "latexComfort.papers.refresh",
+          "when": "view == latexComfort.papers",
+          "group": "navigation@5"
         }
       ],
       "view/item/context": [
@@ -137,6 +154,9 @@
       "commandPalette": [
         {
           "command": "latexComfort.papers.add"
+        },
+        {
+          "command": "latexComfort.papers.filter"
         },
         {
           "command": "latexComfort.papers.refresh"
