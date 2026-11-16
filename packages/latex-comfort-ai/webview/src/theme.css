@@ -1,3 +1,10 @@
+/*
+ * Review-card visual treatment adapted from Lattice (Apache-2.0).
+ * Copyright 2026 Leonardo and the Lattice contributors.
+ * Licensed under the Apache License, Version 2.0.
+ * Modified for LaTeX Comfort: VS Code theme variables and Webview layout.
+ */
+
 :root {
   color-scheme: light dark;
   --surface: var(--vscode-editorWidget-background, var(--vscode-editor-background));

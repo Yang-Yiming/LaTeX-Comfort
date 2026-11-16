@@ -1,3 +1,10 @@
+/*
+ * Review-card workflow adapted from Lattice, src/canvas/proofread-card.tsx
+ * (Apache-2.0). Copyright 2026 Leonardo and the Lattice contributors.
+ * Licensed under the Apache License, Version 2.0.
+ * Modified for LaTeX Comfort: VS Code Webview messaging and presentation.
+ */
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import type {
   EditMode,

@@ -1,3 +1,10 @@
+/*
+ * Adapted from Lattice, src/agent/proofread-edits.ts (Apache-2.0).
+ * Copyright 2026 Leonardo and the Lattice contributors.
+ * Licensed under the Apache License, Version 2.0.
+ * Modified for LaTeX Comfort: Intl.Segmenter support for CJK prose.
+ */
+
 export interface Token {
   text: string;
   from: number;

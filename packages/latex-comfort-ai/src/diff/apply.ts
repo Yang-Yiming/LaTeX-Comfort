@@ -1,3 +1,10 @@
+/*
+ * Adapted from Lattice, src/agent/proofread-edits.ts (Apache-2.0).
+ * Copyright 2026 Leonardo and the Lattice contributors.
+ * Licensed under the Apache License, Version 2.0.
+ * Modified for LaTeX Comfort: VS Code hunk type and range validation.
+ */
+
 import type { Hunk } from "@latex-comfort/shared";
 
 /** Applies selected hunks to the original text, in source order. */

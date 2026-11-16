@@ -1,3 +1,10 @@
+/*
+ * Adapted from Lattice, src/agent/proofread-edits.ts (Apache-2.0).
+ * Copyright 2026 Leonardo and the Lattice contributors.
+ * Licensed under the Apache License, Version 2.0.
+ * Modified for LaTeX Comfort: bounded LCS and VS Code hunk ranges.
+ */
+
 import type { Hunk } from "@latex-comfort/shared";
 import { tokenize, type Token } from "./tokenize";
 

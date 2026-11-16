@@ -1,0 +1,15 @@
+LaTeX Comfort
+Copyright 2026 LaTeX Comfort contributors
+
+This product includes software adapted from Lattice:
+https://github.com/leo1oel/lattice
+Upstream revision: eb523a879b10f443b6d6479959eae12750bf168c
+
+Lattice
+Copyright 2026 Leonardo and the Lattice contributors
+
+Lattice is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+The adaptation uses only the Apache-2.0-licensed Lattice source under its
+src/ directory. No code from Lattice's separately licensed gpui/ application,
+the tldraw SDK, or Trellis is included.

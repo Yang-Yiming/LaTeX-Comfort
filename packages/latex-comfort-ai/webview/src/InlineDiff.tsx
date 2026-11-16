@@ -1,3 +1,10 @@
+/*
+ * Review diff presentation adapted from Lattice's proofreading card
+ * (Apache-2.0). Copyright 2026 Leonardo and the Lattice contributors.
+ * Licensed under the Apache License, Version 2.0.
+ * Modified for LaTeX Comfort: VS Code Webview rendering and interactions.
+ */
+
 import { useMemo, type CSSProperties, type ReactNode } from "react";
 import type { Hunk } from "@latex-comfort/shared";
 import { highlightLatexTokens, LatexHighlight } from "./LatexHighlight";
