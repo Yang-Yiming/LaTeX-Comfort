@@ -1,6 +1,7 @@
 export const COMMANDS = {
   editSelection: "latexComfort.ai.editSelection",
   configureProvider: "latexComfort.ai.configureProvider",
+  configureReviewSurface: "latexComfort.ai.configureReviewSurface",
 } as const;
 
 export const SECRET_KEYS = {

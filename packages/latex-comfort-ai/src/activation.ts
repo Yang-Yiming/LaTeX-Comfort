@@ -79,7 +79,9 @@ export function activateLatexComfort(
   });
 
   context.subscriptions.push(
-    ...registerCommands(context, controller),
+    ...registerCommands(context, controller, {
+      supportsEditorInset: options.editorInset !== undefined,
+    }),
     { dispose: () => controller?.dispose() },
     host,
   );

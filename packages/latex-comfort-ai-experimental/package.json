@@ -49,6 +49,11 @@
         "command": "latexComfort.ai.configureProvider",
         "title": "LaTeX Comfort AI: Configure Provider",
         "category": "LaTeX Comfort AI"
+      },
+      {
+        "command": "latexComfort.ai.configureReviewSurface",
+        "title": "LaTeX Comfort AI: Configure Review Surface",
+        "category": "LaTeX Comfort AI"
       }
     ],
     "menus": {
@@ -65,6 +70,9 @@
         },
         {
           "command": "latexComfort.ai.configureProvider"
+        },
+        {
+          "command": "latexComfort.ai.configureReviewSurface"
         }
       ]
     },
@@ -117,12 +125,19 @@
           "type": "string",
           "enum": [
             "auto",
-            "sidePanel",
             "inline",
-            "editorInset"
+            "editorInset",
+            "sidePanel"
           ],
           "default": "auto",
-          "description": "Where to review AI edits. Auto uses the experimental editor inset for short selections, native inline review when unavailable, and the side panel for long reviews."
+          "order": 10,
+          "enumDescriptions": [
+            "Choose automatically: editor card for short selections when available, native inline as fallback, and the side panel for long reviews.",
+            "Stable decoration + CodeLens review directly in the editor.",
+            "Lattice-style review card below the selection using the Proposed editorInsets API. Falls back when unavailable.",
+            "Show the full review card beside the editor. Best for long selections."
+          ],
+          "markdownDescription": "Where to review AI edits. Run **LaTeX Comfort AI: Configure Review Surface** from the Command Palette for a guided picker.\n\n`auto` prefers the experimental editor card for short selections, falls back to native inline, and uses the side panel for long reviews."
         }
       }
     }

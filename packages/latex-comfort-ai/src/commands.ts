@@ -5,7 +5,12 @@ import {
   type SelectionContext,
 } from "@latex-comfort/shared";
 import { getCoreApi } from "./core-api";
-import { readProviderSettings } from "./model/vscode-settings";
+import {
+  readProviderSettings,
+  readReviewPresentation,
+} from "./model/vscode-settings";
+import { reviewPresentationOptions } from "./review/presentation-options";
+import type { ReviewPresentationSetting } from "./review/presentation";
 import type { EditController } from "./session/controller";
 
 type ModePick = vscode.QuickPickItem & {
@@ -132,9 +137,39 @@ export function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+export async function configureReviewSurface(
+  supportsEditorInset: boolean,
+): Promise<void> {
+  const current = readReviewPresentation();
+  const options = reviewPresentationOptions(supportsEditorInset);
+  const currentOption = options.find((option) => option.value === current);
+  const picked = await vscode.window.showQuickPick(
+    options.map((option) => ({
+      label: option.label,
+      description: option.description,
+      detail: option.detail,
+      value: option.value,
+      picked: option.value === current,
+    })),
+    {
+      title: "LaTeX Comfort AI: Review Surface",
+      placeHolder: `Current: ${currentOption?.label ?? current}`,
+      ignoreFocusOut: true,
+    },
+  );
+  if (!picked) return;
+  const config = vscode.workspace.getConfiguration("latexComfort.ai");
+  await config.update(
+    "review.presentation",
+    picked.value satisfies ReviewPresentationSetting,
+    vscode.ConfigurationTarget.Global,
+  );
+}
+
 export function registerCommands(
   context: vscode.ExtensionContext,
   controller: EditController,
+  options: { supportsEditorInset: boolean } = { supportsEditorInset: false },
 ): vscode.Disposable[] {
   return [
     vscode.commands.registerCommand(COMMANDS.editSelection, () =>
@@ -145,6 +180,13 @@ export function registerCommands(
     vscode.commands.registerCommand(COMMANDS.configureProvider, () =>
       import("./model/vscode-settings").then(({ configureProvider }) =>
         configureProvider(context),
+      ),
+    ),
+    vscode.commands.registerCommand(COMMANDS.configureReviewSurface, () =>
+      configureReviewSurface(options.supportsEditorInset).catch(
+        (error: unknown) => {
+          void vscode.window.showErrorMessage(messageOf(error));
+        },
       ),
     ),
   ];

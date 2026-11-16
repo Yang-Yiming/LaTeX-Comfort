@@ -23,6 +23,8 @@ Experimental extension adds `editorInset`.
 
 `auto` uses the experimental inset when available, falls back to native inline without Proposed API support, and opens the side panel for selections longer than 20 lines or 1,600 characters.
 
+The same value is editable in VS Code Settings under **LaTeX Comfort AI → Review: Presentation**. For a guided picker, run **LaTeX Comfort AI: Configure Review Surface** from the Command Palette. The picker writes the global user setting.
+
 ## Stable build
 
 ```bash
