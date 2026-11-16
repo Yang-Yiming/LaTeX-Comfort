@@ -1,0 +1,122 @@
+/*
+ * Diagnostic navigation adapted from Lattice's
+ * src/build/compile-diagnostics-panel.tsx (Apache-2.0).
+ * Copyright 2026 Leonardo and the Lattice contributors.
+ * Licensed under the Apache License, Version 2.0.
+ * Modified for LaTeX Comfort: VS Code status bar and Quick Pick.
+ */
+
+import * as vscode from "vscode";
+import { collectCompileProblems, type CompileProblem } from "./model";
+import { compileProblemRows } from "./picker";
+import { compileProblemStatus } from "./status";
+import { diagnosticToProblemInput } from "./vscode-adapter";
+
+export const SHOW_COMPILE_PROBLEMS_COMMAND = "latexComfort.showCompileProblems";
+
+type ProblemQuickPickItem = vscode.QuickPickItem & { problem?: CompileProblem };
+
+export class CompileProblemsController implements vscode.Disposable {
+  private readonly statusBar = vscode.window.createStatusBarItem(
+    vscode.StatusBarAlignment.Left,
+    90,
+  );
+  private refreshTimer: ReturnType<typeof setTimeout> | undefined;
+  private problems: CompileProblem[] = [];
+
+  constructor() {
+    this.statusBar.command = SHOW_COMPILE_PROBLEMS_COMMAND;
+    this.statusBar.name = "LaTeX Comfort Compile Problems";
+  }
+
+  start(): vscode.Disposable[] {
+    this.refresh();
+    return [
+      this,
+      vscode.commands.registerCommand(
+        SHOW_COMPILE_PROBLEMS_COMMAND,
+        () => void this.show(),
+      ),
+      vscode.languages.onDidChangeDiagnostics(() => this.scheduleRefresh()),
+    ];
+  }
+
+  dispose(): void {
+    if (this.refreshTimer) clearTimeout(this.refreshTimer);
+    this.statusBar.dispose();
+  }
+
+  private scheduleRefresh(): void {
+    if (this.refreshTimer) clearTimeout(this.refreshTimer);
+    this.refreshTimer = setTimeout(() => {
+      this.refreshTimer = undefined;
+      this.refresh();
+    }, 100);
+  }
+
+  private refresh(): void {
+    this.problems = collectCompileProblems(
+      vscode.languages.getDiagnostics().flatMap(([uri, diagnostics]) =>
+        diagnostics.map((diagnostic) => diagnosticToProblemInput(
+          uri.toString(),
+          vscode.workspace.asRelativePath(uri, false),
+          diagnostic,
+        )),
+      ),
+    );
+
+    const status = compileProblemStatus(this.problems);
+    if (!status) {
+      this.statusBar.hide();
+      return;
+    }
+    this.statusBar.text = status.text;
+    this.statusBar.tooltip = status.tooltip;
+    this.statusBar.show();
+  }
+
+  private async show(): Promise<void> {
+    if (this.problems.length === 0) {
+      void vscode.window.showInformationMessage("No LaTeX compile errors found.");
+      return;
+    }
+
+    const items = compileProblemRows(this.problems).map((row): ProblemQuickPickItem =>
+      row.kind === "separator"
+        ? { label: row.label, kind: vscode.QuickPickItemKind.Separator }
+        : {
+            label: row.label,
+            description: row.description,
+            detail: row.problem.source ? `Source: ${row.problem.source}` : undefined,
+            iconPath: new vscode.ThemeIcon(
+              "error",
+              new vscode.ThemeColor("errorForeground"),
+            ),
+            problem: row.problem,
+          },
+    );
+    const status = compileProblemStatus(this.problems);
+    const picked = await vscode.window.showQuickPick(items, {
+      title: "LaTeX Compile Problems",
+      placeHolder: status?.tooltip ?? "Select an error to jump to its source",
+      matchOnDescription: true,
+      matchOnDetail: true,
+    });
+    if (picked?.problem) await this.open(picked.problem);
+  }
+
+  private async open(problem: CompileProblem): Promise<void> {
+    try {
+      const uri = vscode.Uri.parse(problem.uri);
+      const document = await vscode.workspace.openTextDocument(uri);
+      const editor = await vscode.window.showTextDocument(document, { preview: true });
+      const { start, end } = problem.range;
+      const range = new vscode.Range(start.line, start.character, end.line, end.character);
+      editor.selection = new vscode.Selection(range.start, range.end);
+      editor.revealRange(range, vscode.TextEditorRevealType.InCenterIfOutsideViewport);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      void vscode.window.showErrorMessage(`Could not open LaTeX compile problem: ${message}`);
+    }
+  }
+}

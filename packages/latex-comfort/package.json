@@ -10,9 +10,19 @@
   },
   "main": "./dist/extension.js",
   "activationEvents": [
+    "onCommand:latexComfort.showCompileProblems",
     "onLanguage:latex",
     "onLanguage:markdown"
   ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "latexComfort.showCompileProblems",
+        "title": "Show Compile Problems",
+        "category": "LaTeX Comfort"
+      }
+    ]
+  },
   "scripts": {
     "build": "node esbuild.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.json"

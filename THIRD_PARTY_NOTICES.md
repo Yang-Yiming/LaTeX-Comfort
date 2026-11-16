@@ -19,6 +19,11 @@ The adapted material is:
   `packages/latex-comfort-ai/webview/src/InlineDiff.tsx` and
   `packages/latex-comfort-ai/webview/src/theme.css`, adapted from Lattice's
   review-card workflow and visual treatment for a VS Code Webview
+- `packages/latex-comfort/src/features/compile-problems/model.ts`,
+  `picker.ts`, `status.ts` and `controller.ts`, adapted from the diagnostic
+  grouping, counting and navigation behavior in Lattice's
+  `src/build/compile-diagnostics.ts`, `compile-diagnostics-panel.tsx` and
+  `build-result-text.ts` for a VS Code status bar and Quick Pick
 
 The adaptation changes Lattice's CodeMirror and React application integration
 to VS Code ranges, commands, decorations and Webview theming. LaTeX Comfort

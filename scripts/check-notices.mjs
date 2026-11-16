@@ -16,6 +16,10 @@ const adaptedFiles = [
   "packages/latex-comfort-ai/webview/src/App.tsx",
   "packages/latex-comfort-ai/webview/src/InlineDiff.tsx",
   "packages/latex-comfort-ai/webview/src/theme.css",
+  "packages/latex-comfort/src/features/compile-problems/model.ts",
+  "packages/latex-comfort/src/features/compile-problems/picker.ts",
+  "packages/latex-comfort/src/features/compile-problems/status.ts",
+  "packages/latex-comfort/src/features/compile-problems/controller.ts",
 ];
 
 const failures = [];
