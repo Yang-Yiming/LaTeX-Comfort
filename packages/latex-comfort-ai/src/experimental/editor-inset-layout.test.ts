@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   chooseInsetLine,
+  contentHeightToLines,
   estimateInsetHeight,
 } from "./editor-inset-layout";
 import type { ReviewReadyState } from "@latex-comfort/shared";
@@ -53,3 +54,10 @@ describe("editor inset layout", () => {
     ).toBe(28);
   });
 });
+
+
+  it("converts measured card height into bounded inset lines", () => {
+    expect(contentHeightToLines(250, 20)).toBe(14);
+    expect(contentHeightToLines(40, 20)).toBe(8);
+    expect(contentHeightToLines(2_000, 20)).toBe(60);
+  });

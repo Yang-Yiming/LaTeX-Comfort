@@ -23,6 +23,14 @@ export function parseWebviewMessage(
   if (value.type === "openSidebar") {
     return { type: "openSidebar" };
   }
+  if (
+    value.type === "contentHeight" &&
+    typeof value.height === "number" &&
+    Number.isFinite(value.height) &&
+    value.height > 0
+  ) {
+    return { type: "contentHeight", height: value.height };
+  }
   if (value.type === "configureProvider") {
     return { type: "configureProvider" };
   }

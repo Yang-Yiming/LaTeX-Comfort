@@ -97,5 +97,9 @@ export type WebviewToHostMessage =
       type: "openSidebar";
     }
   | {
+      type: "contentHeight";
+      height: number;
+    }
+  | {
       type: "configureProvider";
     };

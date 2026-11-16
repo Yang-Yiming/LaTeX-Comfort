@@ -6,6 +6,7 @@ import { reviewStateToMessage } from "../review/webview-message";
 import { webviewHtml } from "../review/webview-html";
 import {
   chooseInsetLine,
+  contentHeightToLines,
   estimateInsetHeight,
 } from "./editor-inset-layout";
 
@@ -33,6 +34,7 @@ export class EditorInsetSurface implements ReviewSurface {
   private ready = false;
   private readonly suppressedDisposals = new Set<vscode.WebviewEditorInset>();
   private state: ReviewViewState = { status: "idle" };
+  private measuredHeight: number | undefined;
   private readonly editorListener: vscode.Disposable;
 
   constructor(
@@ -52,6 +54,7 @@ export class EditorInsetSurface implements ReviewSurface {
   }
 
   render(state: ReviewViewState): void {
+    if (state.status !== this.state.status) this.measuredHeight = undefined;
     this.state = state;
     this.sync();
   }
@@ -80,12 +83,15 @@ export class EditorInsetSurface implements ReviewSurface {
     }
 
     const line = chooseInsetLine(state.context);
-    const height =
+    const fallbackHeight =
       state.status === "ready"
         ? estimateInsetHeight(state.review)
         : state.status === "error"
-          ? 12
-          : 10;
+          ? 14
+          : 16;
+    const height = this.measuredHeight
+      ? contentHeightToLines(this.measuredHeight, this.lineHeight(editor))
+      : fallbackHeight;
 
     if (this.inset && this.insetLine === line && this.insetHeight === height) {
       this.postState();
@@ -117,6 +123,19 @@ export class EditorInsetSurface implements ReviewSurface {
         if (message.type === "webviewReady") {
           this.ready = true;
           this.postState();
+          return;
+        }
+        if (message.type === "contentHeight") {
+          const measured = message.height;
+          const nextHeight = contentHeightToLines(
+            measured,
+            this.lineHeight(this.editor()),
+          );
+          this.measuredHeight = measured;
+          if (this.insetHeight !== nextHeight) {
+            this.disposeInset();
+            this.sync();
+          }
           return;
         }
         this.dispatch(message);
@@ -171,6 +190,17 @@ export class EditorInsetSurface implements ReviewSurface {
     return vscode.window.visibleTextEditors.find(
       (editor) => editor.document.uri.toString() === uri,
     );
+  }
+
+  private lineHeight(editor: vscode.TextEditor | undefined): number {
+    const config = vscode.workspace.getConfiguration(
+      "editor",
+      editor?.document.uri,
+    );
+    const configured = config.get<number>("lineHeight", 0);
+    if (configured > 0) return configured;
+    const fontSize = config.get<number>("fontSize", 14);
+    return Math.max(16, Math.round(fontSize * 1.5));
   }
 
   private disposeInset(): void {

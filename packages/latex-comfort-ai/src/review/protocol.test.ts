@@ -16,6 +16,10 @@ describe("parseWebviewMessage", () => {
     expect(parseWebviewMessage({ type: "openSidebar" })).toEqual({
       type: "openSidebar",
     });
+    expect(parseWebviewMessage({ type: "contentHeight", height: 248 })).toEqual({
+      type: "contentHeight",
+      height: 248,
+    });
   });
 
   it("accepts the provider configuration request", () => {
@@ -26,6 +30,7 @@ describe("parseWebviewMessage", () => {
 
   it("rejects malformed messages", () => {
     expect(parseWebviewMessage({ type: "toggleHunk", id: -1, accepted: true })).toBeNull();
+    expect(parseWebviewMessage({ type: "contentHeight", height: -1 })).toBeNull();
     expect(parseWebviewMessage({ type: "nope" })).toBeNull();
   });
 });

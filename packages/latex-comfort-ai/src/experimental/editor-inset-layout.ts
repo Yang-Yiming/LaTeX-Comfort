@@ -13,3 +13,14 @@ export function estimateInsetHeight(review: ReviewReadyState): number {
   }, 0);
   return Math.min(28, Math.max(12, 10 + changedLines));
 }
+
+export function contentHeightToLines(
+  contentHeight: number,
+  lineHeight: number,
+): number {
+  const safeLineHeight = Math.max(1, lineHeight);
+  return Math.min(
+    60,
+    Math.max(8, Math.ceil(contentHeight / safeLineHeight) + 1),
+  );
+}

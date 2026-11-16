@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type {
   EditMode,
   HostToWebviewMessage,
@@ -26,6 +26,7 @@ const MODE_LABEL: Record<EditMode, string> = {
 
 export function App() {
   const [state, setState] = useState<UiState>({ status: "idle" });
+  const reportedHeight = useRef(0);
 
   useEffect(() => {
     const onMessage = (event: MessageEvent<HostToWebviewMessage>) => {
@@ -55,6 +56,31 @@ export function App() {
     vscode.postMessage({ type: "webviewReady" });
     return () => window.removeEventListener("message", onMessage);
   }, []);
+
+  useEffect(() => {
+    if (document.body.dataset.reviewSurface !== "inset") return;
+    const card = document.querySelector<HTMLElement>(".review-card");
+    if (!card) return;
+
+    let timer: number | undefined;
+    const report = () => {
+      window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        const height = Math.ceil(card.getBoundingClientRect().height + 24);
+        if (height > 0 && Math.abs(height - reportedHeight.current) > 1) {
+          reportedHeight.current = height;
+          vscode.postMessage({ type: "contentHeight", height });
+        }
+      }, 50);
+    };
+    const observer = new ResizeObserver(report);
+    observer.observe(card);
+    report();
+    return () => {
+      observer.disconnect();
+      window.clearTimeout(timer);
+    };
+  }, [state]);
 
   const ready = state.status === "ready" ? state.state : null;
   const selected = useMemo(

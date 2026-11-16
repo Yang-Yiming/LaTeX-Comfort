@@ -82,6 +82,7 @@ export class PanelSurface implements ReviewSurface {
         void this.sync().catch((error: unknown) => this.reportOpenError(error));
         return;
       }
+      if (message.type === "contentHeight") return;
       this.dispatch(message);
     });
 
