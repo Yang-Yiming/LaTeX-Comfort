@@ -35,6 +35,7 @@ export class EditorInsetSurface implements ReviewSurface {
   private readonly suppressedDisposals = new Set<vscode.WebviewEditorInset>();
   private state: ReviewViewState = { status: "idle" };
   private measuredHeight: number | undefined;
+  private measuredFontSize: number | undefined;
   private readonly editorListener: vscode.Disposable;
 
   constructor(
@@ -54,7 +55,10 @@ export class EditorInsetSurface implements ReviewSurface {
   }
 
   render(state: ReviewViewState): void {
-    if (state.status !== this.state.status) this.measuredHeight = undefined;
+    if (state.status !== this.state.status) {
+      this.measuredHeight = undefined;
+      this.measuredFontSize = undefined;
+    }
     this.state = state;
     this.sync();
   }
@@ -87,10 +91,13 @@ export class EditorInsetSurface implements ReviewSurface {
       state.status === "ready"
         ? estimateInsetHeight(state.review)
         : state.status === "error"
-          ? 14
-          : 16;
+          ? 12
+          : 12;
     const height = this.measuredHeight
-      ? contentHeightToLines(this.measuredHeight, this.lineHeight(editor))
+      ? contentHeightToLines(
+          this.measuredHeight,
+          this.lineHeight(editor, this.measuredFontSize),
+        )
       : fallbackHeight;
 
     if (this.inset && this.insetLine === line && this.insetHeight === height) {
@@ -129,9 +136,10 @@ export class EditorInsetSurface implements ReviewSurface {
           const measured = message.height;
           const nextHeight = contentHeightToLines(
             measured,
-            this.lineHeight(this.editor()),
+            this.lineHeight(this.editor(), message.fontSize),
           );
           this.measuredHeight = measured;
+          this.measuredFontSize = message.fontSize;
           if (this.insetHeight !== nextHeight) {
             this.disposeInset();
             this.sync();
@@ -192,14 +200,20 @@ export class EditorInsetSurface implements ReviewSurface {
     );
   }
 
-  private lineHeight(editor: vscode.TextEditor | undefined): number {
+  private lineHeight(
+    editor: vscode.TextEditor | undefined,
+    webviewFontSize: number | undefined,
+  ): number {
     const config = vscode.workspace.getConfiguration(
       "editor",
       editor?.document.uri,
     );
     const configured = config.get<number>("lineHeight", 0);
     if (configured > 0) return configured;
-    const fontSize = config.get<number>("fontSize", 14);
+    const fontSize =
+      webviewFontSize && webviewFontSize > 0
+        ? webviewFontSize
+        : config.get<number>("fontSize", 14);
     return Math.max(16, Math.round(fontSize * 1.5));
   }
 

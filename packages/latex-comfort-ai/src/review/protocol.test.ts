@@ -16,9 +16,12 @@ describe("parseWebviewMessage", () => {
     expect(parseWebviewMessage({ type: "openSidebar" })).toEqual({
       type: "openSidebar",
     });
-    expect(parseWebviewMessage({ type: "contentHeight", height: 248 })).toEqual({
+    expect(
+      parseWebviewMessage({ type: "contentHeight", height: 248, fontSize: 16 }),
+    ).toEqual({
       type: "contentHeight",
       height: 248,
+      fontSize: 16,
     });
   });
 

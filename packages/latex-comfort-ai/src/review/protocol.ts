@@ -29,7 +29,15 @@ export function parseWebviewMessage(
     Number.isFinite(value.height) &&
     value.height > 0
   ) {
-    return { type: "contentHeight", height: value.height };
+    return {
+      type: "contentHeight",
+      height: value.height,
+      ...(typeof value.fontSize === "number" &&
+      Number.isFinite(value.fontSize) &&
+      value.fontSize > 0
+        ? { fontSize: value.fontSize }
+        : {}),
+    };
   }
   if (value.type === "configureProvider") {
     return { type: "configureProvider" };

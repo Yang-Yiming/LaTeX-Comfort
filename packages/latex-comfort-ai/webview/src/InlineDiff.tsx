@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import type { Hunk } from "@latex-comfort/shared";
 
 type Props = {
@@ -13,7 +13,7 @@ export function InlineDiff({ original, hunks, rejected, onToggle }: Props) {
   const parts: ReactNode[] = [];
   let cursor = 0;
 
-  for (const hunk of ordered) {
+  for (const [index, hunk] of ordered.entries()) {
     const before = original.slice(cursor, hunk.from);
     if (before) parts.push(<span key={`text-${hunk.id}`}>{before}</span>);
     cursor = hunk.to;
@@ -25,6 +25,7 @@ export function InlineDiff({ original, hunks, rejected, onToggle }: Props) {
         key={`edit-${hunk.id}`}
         className="inline-edit"
         data-status={applied ? "applied" : "kept"}
+        style={{ "--edit-index": index } as CSSProperties}
         role="button"
         tabIndex={0}
         aria-pressed={applied}

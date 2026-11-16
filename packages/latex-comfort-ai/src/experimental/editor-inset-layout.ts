@@ -21,6 +21,6 @@ export function contentHeightToLines(
   const safeLineHeight = Math.max(1, lineHeight);
   return Math.min(
     60,
-    Math.max(8, Math.ceil(contentHeight / safeLineHeight) + 1),
+    Math.max(8, Math.ceil(contentHeight / safeLineHeight)),
   );
 }

@@ -99,6 +99,7 @@ export type WebviewToHostMessage =
   | {
       type: "contentHeight";
       height: number;
+      fontSize?: number;
     }
   | {
       type: "configureProvider";

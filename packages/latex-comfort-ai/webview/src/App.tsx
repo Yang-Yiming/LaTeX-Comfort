@@ -66,10 +66,19 @@ export function App() {
     const report = () => {
       window.clearTimeout(timer);
       timer = window.setTimeout(() => {
-        const height = Math.ceil(card.getBoundingClientRect().height + 24);
+        const height = Math.ceil(card.getBoundingClientRect().height + 8);
+        const fontSize = Number.parseFloat(
+          getComputedStyle(document.documentElement).getPropertyValue(
+            "--vscode-editor-font-size",
+          ),
+        );
         if (height > 0 && Math.abs(height - reportedHeight.current) > 1) {
           reportedHeight.current = height;
-          vscode.postMessage({ type: "contentHeight", height });
+          vscode.postMessage({
+            type: "contentHeight",
+            height,
+            ...(Number.isFinite(fontSize) && fontSize > 0 ? { fontSize } : {}),
+          });
         }
       }, 50);
     };

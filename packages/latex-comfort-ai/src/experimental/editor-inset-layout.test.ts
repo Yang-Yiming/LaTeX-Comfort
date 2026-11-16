@@ -57,7 +57,7 @@ describe("editor inset layout", () => {
 
 
   it("converts measured card height into bounded inset lines", () => {
-    expect(contentHeightToLines(250, 20)).toBe(14);
+    expect(contentHeightToLines(250, 20)).toBe(13);
     expect(contentHeightToLines(40, 20)).toBe(8);
     expect(contentHeightToLines(2_000, 20)).toBe(60);
   });

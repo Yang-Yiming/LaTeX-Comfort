@@ -1,9 +1,11 @@
 :root {
   color-scheme: light dark;
   --surface: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+  --surface-elevated: color-mix(in srgb, var(--surface) 94%, var(--vscode-foreground) 6%);
   --surface-soft: color-mix(in srgb, var(--vscode-foreground) 5%, transparent);
   --surface-hover: color-mix(in srgb, var(--vscode-foreground) 9%, transparent);
   --border: var(--vscode-widget-border, color-mix(in srgb, var(--vscode-foreground) 16%, transparent));
+  --border-subtle: color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
   --ink: var(--vscode-foreground);
   --muted: var(--vscode-descriptionForeground, var(--vscode-foreground));
   --danger: var(--vscode-errorForeground, #f14c4c);
@@ -78,15 +80,24 @@ body[data-review-surface="inset"] .inline-diff {
   padding: 18px;
   border: 1px solid var(--border);
   border-radius: 12px;
-  background: var(--surface);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.16);
-  animation: card-in 180ms ease-out both;
+  background: var(--surface-elevated);
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.14);
+  container-type: inline-size;
+  animation: card-unroll 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
-@keyframes card-in {
+.review-card > * {
+  min-width: 0;
+}
+
+@keyframes card-unroll {
   from {
     opacity: 0;
-    transform: translateY(4px);
+    clip-path: inset(-24px -24px 100% -24px);
+  }
+  to {
+    opacity: 1;
+    clip-path: inset(-24px);
   }
 }
 
@@ -170,7 +181,9 @@ body[data-review-surface="inset"] .inline-diff {
   overflow-wrap: anywhere;
   word-break: break-word;
   outline: none;
-  transition: background-color 120ms ease;
+  animation: review-edit-in 180ms ease-out both;
+  animation-delay: calc(var(--edit-index, 0) * 18ms);
+  transition: background-color 120ms ease, box-shadow 120ms ease;
 }
 
 .inline-edit[role="button"] {
@@ -181,6 +194,11 @@ body[data-review-surface="inset"] .inline-diff {
 .inline-edit[role="button"]:focus-visible {
   background: var(--surface-hover);
   box-shadow: 0 0 0 1px var(--accent);
+}
+
+@keyframes review-edit-in {
+  from { opacity: 0.15; }
+  to { opacity: 1; }
 }
 
 .inline-edit del {
@@ -225,8 +243,9 @@ body[data-review-surface="inset"] .inline-diff {
   gap: 8px;
   min-height: 30px;
   padding: 5px 12px;
-  border-radius: 6px;
+  border-radius: 8px;
   cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease, opacity 120ms ease;
 }
 
 .primary-action {
@@ -234,6 +253,7 @@ body[data-review-surface="inset"] .inline-diff {
   background: var(--button);
   color: var(--button-ink);
   font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.16);
 }
 
 .primary-action:hover:not(:disabled) {
@@ -319,6 +339,18 @@ kbd {
 
   .review-meta {
     width: 100%;
+  }
+}
+
+@container (max-width: 320px) {
+  .review-meta,
+  .primary-action kbd,
+  .quiet-action kbd {
+    display: none;
+  }
+
+  .review-actions {
+    align-items: stretch;
   }
 }
 
