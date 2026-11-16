@@ -20,6 +20,8 @@
   },
   "dependencies": {
     "@latex-comfort/shared": "workspace:*",
+    "highlight.js": "~11.11.2",
+    "lowlight": "^3.3.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
   },

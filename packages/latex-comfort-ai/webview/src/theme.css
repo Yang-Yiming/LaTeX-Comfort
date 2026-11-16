@@ -202,6 +202,7 @@ body[data-review-surface="inset"] .inline-diff {
 }
 
 .inline-edit del {
+  opacity: 0.68;
   color: var(--muted);
   text-decoration-color: var(--danger);
   text-decoration-line: line-through;
@@ -224,6 +225,34 @@ body[data-review-surface="inset"] .inline-diff {
 
 .inline-edit .caret {
   color: var(--muted);
+}
+
+.inline-diff .hljs-keyword {
+  color: var(--vscode-symbolIcon-functionForeground, var(--vscode-textLink-foreground, var(--ink)));
+}
+
+.inline-diff .hljs-built_in {
+  color: var(--vscode-symbolIcon-keywordForeground, var(--vscode-symbolIcon-functionForeground, var(--ink)));
+}
+
+.inline-diff .hljs-string {
+  color: var(--vscode-symbolIcon-stringForeground, var(--vscode-charts-green, var(--success)));
+}
+
+.inline-diff .hljs-comment,
+.inline-diff .hljs-meta {
+  color: var(--vscode-descriptionForeground, var(--muted));
+  font-style: italic;
+}
+
+.inline-diff .hljs-number,
+.inline-diff .hljs-params {
+  color: var(--vscode-symbolIcon-numberForeground, var(--vscode-charts-orange, var(--ink)));
+}
+
+.inline-diff .hljs-title,
+.inline-diff .hljs-variable {
+  color: var(--vscode-symbolIcon-variableForeground, var(--ink));
 }
 
 .review-actions {
