@@ -48,7 +48,7 @@ body[data-review-surface="inset"] .review-shell {
   max-width: 100%;
   height: 100%;
   margin: 0;
-  padding: 4px 0 8px;
+  padding: 4px 8px 8px 0;
   overflow: auto;
 }
 

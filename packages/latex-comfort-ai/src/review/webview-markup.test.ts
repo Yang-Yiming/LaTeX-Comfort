@@ -13,6 +13,6 @@ describe("injectWebviewShell", () => {
     expect(html).toContain('<body data-review-surface="inset">');
     expect(html).toContain('<base href="vscode-webview://review/">');
     expect(html).toContain('http-equiv="Content-Security-Policy"');
-    expect(html).toContain("padding: 4px 0 8px");
+    expect(html).toContain("padding: 4px 8px 8px 0");
   });
 });
