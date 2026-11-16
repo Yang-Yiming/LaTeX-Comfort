@@ -31,11 +31,19 @@ export function positionWithinSelection(
   };
 }
 
-export function formatInsertionPreview(
-  insert: string,
-  maxLength = 72,
+export function acceptLensTitle(selected: number, total: number): string {
+  if (selected === 0) return "$(circle-slash) No changes selected";
+  if (selected === total) return `$(check) Accept all (${total})`;
+  return `$(check) Accept ${selected} of ${total}`;
+}
+
+export function hunkHoverMarkdown(
+  id: number,
+  total: number,
+  accepted: boolean,
+  commandId: string,
 ): string {
-  const compact = insert.replace(/\s+/g, " ").trim();
-  if (compact.length <= maxLength) return compact;
-  return `${compact.slice(0, Math.max(0, maxLength - 1))}…`;
+  const action = accepted ? "Skip this change" : "Use this change";
+  const argumentsJson = encodeURIComponent(JSON.stringify([id, !accepted]));
+  return `**Change ${id + 1} of ${total}**\n\n[${action}](command:${commandId}?${argumentsJson})`;
 }

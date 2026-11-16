@@ -1,7 +1,8 @@
 import * as vscode from "vscode";
 import type { Hunk, TextRange } from "@latex-comfort/shared";
 import {
-  formatInsertionPreview,
+  acceptLensTitle,
+  hunkHoverMarkdown,
   rangeWithinSelection,
 } from "./native-inline-layout";
 import type { ReviewAction, ReviewViewState } from "./state";
@@ -27,16 +28,16 @@ export class NativeInlineSurface implements ReviewSurface {
     textDecoration: "underline dashed",
   });
   private readonly insertionDecoration = vscode.window.createTextEditorDecorationType({
-    after: {
-      color: new vscode.ThemeColor("editor.foreground"),
-      backgroundColor: new vscode.ThemeColor("diffEditor.insertedTextBackground"),
-      border: "1px solid",
-      borderColor: new vscode.ThemeColor("diffEditor.insertedTextBorder"),
-      margin: "0 0 0 4px",
-      fontStyle: "italic",
-    },
+    backgroundColor: new vscode.ThemeColor("diffEditor.insertedTextBackground"),
+    border: "1px solid",
+    borderColor: new vscode.ThemeColor("diffEditor.insertedTextBorder"),
   });
-  private readonly codeLens = new HunkCodeLensProvider();
+  private readonly rejectedInsertionDecoration = vscode.window.createTextEditorDecorationType({
+    backgroundColor: new vscode.ThemeColor("editor.wordHighlightBackground"),
+    border: "1px dashed",
+    borderColor: new vscode.ThemeColor("editorWarning.foreground"),
+  });
+  private readonly codeLens = new ReviewCodeLensProvider();
   private readonly disposables: vscode.Disposable[];
   private loadingStatus: vscode.Disposable | undefined;
   private lastError: string | undefined;
@@ -46,6 +47,7 @@ export class NativeInlineSurface implements ReviewSurface {
       this.removedDecoration,
       this.rejectedDecoration,
       this.insertionDecoration,
+      this.rejectedInsertionDecoration,
       this.codeLens,
       vscode.languages.registerCodeLensProvider("*", this.codeLens),
       vscode.commands.registerCommand(COMMAND.accept, () =>
@@ -126,30 +128,44 @@ export class NativeInlineSurface implements ReviewSurface {
     const removed: vscode.DecorationOptions[] = [];
     const rejected: vscode.DecorationOptions[] = [];
     const inserted: vscode.DecorationOptions[] = [];
+    const rejectedInsertions: vscode.DecorationOptions[] = [];
 
     for (const hunk of review.hunks) {
-      const deleted = review.original.slice(hunk.from, hunk.to);
-      const range = toVscodeRange(
-        rangeWithinSelection(context.range, review.original, hunk.from, hunk.to),
+      const accepted = selected.has(hunk.id);
+      const hoverMessage = new vscode.MarkdownString(
+        hunkHoverMarkdown(
+          hunk.id,
+          review.hunks.length,
+          accepted,
+          COMMAND.toggleHunk,
+        ),
       );
+      hoverMessage.isTrusted = true;
+
+      const deleted = review.original.slice(hunk.from, hunk.to);
       if (deleted) {
-        (selected.has(hunk.id) ? removed : rejected).push({ range });
-      }
-      if (hunk.insert && selected.has(hunk.id)) {
-        inserted.push({
+        const range = toVscodeRange(
+          rangeWithinSelection(
+            context.range,
+            review.original,
+            hunk.from,
+            hunk.to,
+          ),
+        );
+        (accepted ? removed : rejected).push({ range, hoverMessage });
+      } else if (hunk.insert) {
+        const option = {
           range: insertionAnchor(review.original, context.range, hunk),
-          renderOptions: {
-            after: {
-              contentText: `→ ${formatInsertionPreview(hunk.insert)}`,
-            },
-          },
-        });
+          hoverMessage,
+        };
+        (accepted ? inserted : rejectedInsertions).push(option);
       }
     }
 
     editor.setDecorations(this.removedDecoration, removed);
     editor.setDecorations(this.rejectedDecoration, rejected);
     editor.setDecorations(this.insertionDecoration, inserted);
+    editor.setDecorations(this.rejectedInsertionDecoration, rejectedInsertions);
     this.codeLens.setState(this.state);
   }
 
@@ -159,6 +175,7 @@ export class NativeInlineSurface implements ReviewSurface {
     target.setDecorations(this.removedDecoration, []);
     target.setDecorations(this.rejectedDecoration, []);
     target.setDecorations(this.insertionDecoration, []);
+    target.setDecorations(this.rejectedInsertionDecoration, []);
   }
 
   private editor(): vscode.TextEditor | undefined {
@@ -173,7 +190,7 @@ export class NativeInlineSurface implements ReviewSurface {
   }
 }
 
-class HunkCodeLensProvider implements vscode.CodeLensProvider {
+class ReviewCodeLensProvider implements vscode.CodeLensProvider {
   private state: ReviewViewState = { status: "idle" };
   private readonly changed = new vscode.EventEmitter<void>();
   readonly onDidChangeCodeLenses = this.changed.event;
@@ -192,8 +209,6 @@ class HunkCodeLensProvider implements vscode.CodeLensProvider {
     if (document.uri.toString() !== this.state.context.uri) return [];
 
     const { review, context, selectedHunkIds } = this.state;
-    const selected = new Set(selectedHunkIds);
-    const lenses: vscode.CodeLens[] = [];
     const start = new vscode.Range(
       context.range.start.line,
       0,
@@ -201,38 +216,20 @@ class HunkCodeLensProvider implements vscode.CodeLensProvider {
       0,
     );
 
-    lenses.push(
+    return [
       new vscode.CodeLens(start, {
-        title: "$(check) Accept selected",
+        title: acceptLensTitle(selectedHunkIds.length, review.hunks.length),
         command: COMMAND.accept,
       }),
       new vscode.CodeLens(start, {
-        title: "$(book) Open full review",
+        title: "$(book) Review",
         command: COMMAND.openSidebar,
       }),
       new vscode.CodeLens(start, {
         title: "$(close) Discard",
         command: COMMAND.reject,
       }),
-    );
-
-    for (const hunk of review.hunks) {
-      const range = toVscodeRange(
-        rangeWithinSelection(context.range, review.original, hunk.from, hunk.to),
-      );
-      const accepted = selected.has(hunk.id);
-      lenses.push(
-        new vscode.CodeLens(range, {
-          title: accepted
-            ? `$(circle-slash) Skip change ${hunk.id + 1}`
-            : `$(check) Use change ${hunk.id + 1}`,
-          command: COMMAND.toggleHunk,
-          arguments: [hunk.id, !accepted],
-        }),
-      );
-    }
-
-    return lenses;
+    ];
   }
 
   dispose(): void {

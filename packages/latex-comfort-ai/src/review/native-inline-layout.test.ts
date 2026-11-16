@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  formatInsertionPreview,
+  acceptLensTitle,
+  hunkHoverMarkdown,
   rangeWithinSelection,
 } from "./native-inline-layout";
 
@@ -39,12 +40,22 @@ describe("native inline layout", () => {
     });
   });
 
-  it("makes compact one-line insertion previews", () => {
-    expect(formatInsertionPreview("  faster\nand clearer  ")).toBe(
-      "faster and clearer",
+  it("labels the compact acceptance action", () => {
+    expect(acceptLensTitle(8, 8)).toBe("$(check) Accept all (8)");
+    expect(acceptLensTitle(3, 8)).toBe("$(check) Accept 3 of 8");
+    expect(acceptLensTitle(0, 8)).toBe("$(circle-slash) No changes selected");
+  });
+
+  it("builds a trusted hover action for one change", () => {
+    const markdown = hunkHoverMarkdown(
+      2,
+      8,
+      true,
+      "latexComfort.ai.review.toggleHunk",
     );
-    expect(formatInsertionPreview("x".repeat(100), 20)).toBe(
-      `${"x".repeat(19)}…`,
-    );
+
+    expect(markdown).toContain("**Change 3 of 8**");
+    expect(markdown).toContain("Skip this change");
+    expect(markdown).toContain("command:latexComfort.ai.review.toggleHunk?%5B2%2Cfalse%5D");
   });
 });
