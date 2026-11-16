@@ -43,19 +43,24 @@ body[data-review-surface="inset"] {
 
 body[data-review-surface="inset"] .review-shell {
   width: 100%;
+  max-width: 100%;
   height: 100%;
   margin: 0;
-  padding: 4px 10px 10px 8px;
+  padding: 4px 0 8px;
   overflow: auto;
 }
 
 body[data-review-surface="inset"] .review-card {
-  width: min(860px, 100%);
+  width: 100%;
+  max-width: none;
+  min-width: 0;
   margin: 0;
   padding: 14px;
 }
 
 body[data-review-surface="inset"] .inline-diff {
+  max-width: 100%;
+  min-width: 0;
   max-height: 170px;
   overflow: auto;
 }
@@ -68,6 +73,7 @@ body[data-review-surface="inset"] .inline-diff {
 
 .review-card {
   display: grid;
+  min-width: 0;
   gap: 16px;
   padding: 18px;
   border: 1px solid var(--border);
@@ -86,6 +92,7 @@ body[data-review-surface="inset"] .inline-diff {
 
 .review-header {
   display: flex;
+  min-width: 0;
   align-items: flex-start;
   flex-wrap: wrap;
   gap: 8px 12px;
@@ -143,6 +150,9 @@ body[data-review-surface="inset"] .inline-diff {
 }
 
 .inline-diff {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   padding: 2px 4px;
   border-radius: 8px;
   color: var(--ink);
@@ -150,11 +160,15 @@ body[data-review-surface="inset"] .inline-diff {
   font-size: var(--vscode-editor-font-size, 14px);
   line-height: 1.75;
   overflow-wrap: anywhere;
+  word-break: break-word;
   white-space: pre-wrap;
 }
 
 .inline-edit {
+  min-width: 0;
   border-radius: 4px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
   outline: none;
   transition: background-color 120ms ease;
 }
@@ -196,6 +210,7 @@ body[data-review-surface="inset"] .inline-diff {
 
 .review-actions {
   display: flex;
+  min-width: 0;
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
