@@ -10,7 +10,11 @@
     "build": "pnpm -r build && pnpm --filter latex-comfort-ai build:webview",
     "build:core": "pnpm --filter latex-comfort build",
     "build:ai": "pnpm --filter latex-comfort-ai build",
-    "build:webview": "pnpm --filter latex-comfort-ai build:webview"
+    "build:webview": "pnpm --filter latex-comfort-ai build:webview",
+    "build:stable": "pnpm --filter latex-comfort-ai build && pnpm --filter latex-comfort-ai build:webview",
+    "build:experimental": "pnpm --filter latex-comfort-ai-experimental build",
+    "package:stable": "pnpm build:stable && cd packages/latex-comfort-ai && npx --yes @vscode/vsce@latest package --no-dependencies --allow-missing-repository -o latex-comfort-ai-0.1.0.vsix",
+    "package:experimental": "pnpm --filter latex-comfort-ai-experimental package"
   },
   "devDependencies": {
     "@types/node": "^22.20.3",

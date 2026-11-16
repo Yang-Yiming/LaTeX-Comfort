@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["node", "vscode"],
+    "noEmit": true
+  },
+  "include": [
+    "../latex-comfort-ai/src/**/*.ts",
+    "../latex-comfort-ai/src/**/*.d.ts"
+  ]
+}

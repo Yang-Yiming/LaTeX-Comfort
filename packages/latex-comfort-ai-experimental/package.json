@@ -1,0 +1,133 @@
+{
+  "name": "latex-comfort-ai-experimental",
+  "displayName": "LaTeX Comfort AI Experimental",
+  "description": "Experimental LaTeX Comfort AI build with Editor Inset review.",
+  "version": "0.1.0",
+  "publisher": "latex-comfort-dev",
+  "license": "Apache-2.0",
+  "engines": {
+    "vscode": "^1.146.0"
+  },
+  "main": "./dist/extension.js",
+  "activationEvents": [
+    "onCommand:latexComfort.ai.editSelection",
+    "onCommand:latexComfort.ai.configureProvider"
+  ],
+  "scripts": {
+    "build": "pnpm --filter latex-comfort-ai build:webview && node esbuild.mjs && node copy-webview.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "package": "pnpm build && npx --yes @vscode/vsce@latest package --no-dependencies --allow-missing-repository --readme-path README-experimental.md -o latex-comfort-ai-experimental-0.1.0.vsix"
+  },
+  "dependencies": {
+    "@latex-comfort/shared": "workspace:*"
+  },
+  "extensionDependencies": [
+    "latex-comfort-dev.latex-comfort"
+  ],
+  "categories": [
+    "AI",
+    "Programming Languages",
+    "Other"
+  ],
+  "keywords": [
+    "latex",
+    "tex",
+    "ai",
+    "rewrite",
+    "proofread",
+    "selection",
+    "writing"
+  ],
+  "contributes": {
+    "commands": [
+      {
+        "command": "latexComfort.ai.editSelection",
+        "title": "LaTeX Comfort AI: Edit Selection…",
+        "category": "LaTeX Comfort AI"
+      },
+      {
+        "command": "latexComfort.ai.configureProvider",
+        "title": "LaTeX Comfort AI: Configure Provider",
+        "category": "LaTeX Comfort AI"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "latexComfort.ai.editSelection",
+          "when": "editorHasSelection && !editorReadonly && editorTextFocus",
+          "group": "navigation@100"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "latexComfort.ai.editSelection"
+        },
+        {
+          "command": "latexComfort.ai.configureProvider"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "latexComfort.ai.editSelection",
+        "key": "ctrl+alt+k",
+        "mac": "cmd+alt+k",
+        "when": "editorHasSelection && !editorReadonly && editorTextFocus"
+      }
+    ],
+    "configuration": {
+      "title": "LaTeX Comfort AI",
+      "properties": {
+        "latexComfort.ai.provider": {
+          "type": "string",
+          "enum": [
+            "vscode-lm",
+            "openai-compatible",
+            "deepseek",
+            "opencode-go"
+          ],
+          "default": "vscode-lm",
+          "description": "Provider used for selection edits."
+        },
+        "latexComfort.ai.baseUrl": {
+          "type": "string",
+          "default": "https://api.openai.com/v1",
+          "description": "OpenAI-compatible base URL, without /chat/completions."
+        },
+        "latexComfort.ai.model": {
+          "type": "string",
+          "default": "",
+          "description": "Model name. Provider presets use their own defaults when empty. For vscode-lm this can be a model id or family."
+        },
+        "latexComfort.ai.maxChars": {
+          "type": "number",
+          "default": 12000,
+          "minimum": 1,
+          "description": "Maximum selected characters for one AI edit."
+        },
+        "latexComfort.ai.temperature": {
+          "type": "number",
+          "default": 0.2,
+          "minimum": 0,
+          "maximum": 2,
+          "description": "Sampling temperature for OpenAI-compatible providers."
+        },
+        "latexComfort.ai.review.presentation": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "sidePanel",
+            "inline",
+            "editorInset"
+          ],
+          "default": "auto",
+          "description": "Where to review AI edits. Auto uses the experimental editor inset for short selections, native inline review when unavailable, and the side panel for long reviews."
+        }
+      }
+    }
+  },
+  "enabledApiProposals": [
+    "editorInsets"
+  ]
+}
