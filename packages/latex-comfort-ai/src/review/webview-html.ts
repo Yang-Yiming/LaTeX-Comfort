@@ -1,9 +1,14 @@
 import { readFile } from "node:fs/promises";
 import * as vscode from "vscode";
+import {
+  injectWebviewShell,
+  type ReviewWebviewSurface,
+} from "./webview-markup";
 
 export async function webviewHtml(
   webview: vscode.Webview,
   extensionUri: vscode.Uri,
+  surface: ReviewWebviewSurface = "panel",
 ): Promise<string> {
   const root = vscode.Uri.joinPath(extensionUri, "dist", "webview");
   const raw = await readFile(
@@ -18,8 +23,5 @@ export async function webviewHtml(
     `img-src ${webview.cspSource} data:`,
     `font-src ${webview.cspSource}`,
   ].join("; ");
-  return raw.replace(
-    /<head>/i,
-    `<head><base href="${base}/"><meta http-equiv="Content-Security-Policy" content="${csp}">`,
-  );
+  return injectWebviewShell(raw, surface, base, csp);
 }

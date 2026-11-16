@@ -135,7 +135,7 @@ export class EditorInsetSurface implements ReviewSurface {
         }
       });
 
-      void webviewHtml(inset.webview, this.extensionUri)
+      void webviewHtml(inset.webview, this.extensionUri, "inset")
         .then((html) => {
           if (this.inset === inset) inset.webview.html = html;
         })
