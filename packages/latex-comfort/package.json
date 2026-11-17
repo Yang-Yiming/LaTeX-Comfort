@@ -11,6 +11,8 @@
   "main": "./dist/extension.js",
   "activationEvents": [
     "onCommand:latexComfort.showCompileProblems",
+    "onCommand:latexComfort.toggleBold",
+    "onCommand:latexComfort.toggleEmphasis",
     "onLanguage:latex",
     "onLanguage:markdown",
     "onView:latexComfort.papers"
@@ -20,6 +22,16 @@
       {
         "command": "latexComfort.showCompileProblems",
         "title": "Show Compile Problems",
+        "category": "LaTeX Comfort"
+      },
+      {
+        "command": "latexComfort.toggleBold",
+        "title": "Toggle Bold",
+        "category": "LaTeX Comfort"
+      },
+      {
+        "command": "latexComfort.toggleEmphasis",
+        "title": "Toggle Emphasis",
         "category": "LaTeX Comfort"
       },
       {
@@ -71,6 +83,20 @@
         "icon": "$(filter)"
       }
     ],
+    "keybindings": [
+      {
+        "command": "latexComfort.toggleBold",
+        "key": "ctrl+b",
+        "mac": "cmd+b",
+        "when": "editorTextFocus && !editorReadOnly && editorHasSelection && editorLangId =~ /^(latex|tex|latex-expl3)$/ && config.latexComfort.keybindings.boldOnSelection"
+      },
+      {
+        "command": "latexComfort.toggleEmphasis",
+        "key": "ctrl+i",
+        "mac": "cmd+i",
+        "when": "editorTextFocus && !editorReadOnly && editorHasSelection && editorLangId =~ /^(latex|tex|latex-expl3)$/ && config.latexComfort.keybindings.emphasisOnSelection"
+      }
+    ],
     "configuration": {
       "title": "LaTeX Comfort",
       "properties": {
@@ -83,6 +109,16 @@
           "type": "string",
           "default": "",
           "description": "Optional contact email sent to Crossref and arXiv APIs for polite API usage."
+        },
+        "latexComfort.keybindings.boldOnSelection": {
+          "type": "boolean",
+          "default": true,
+          "description": "Use Cmd+B / Ctrl+B to toggle \\textbf on a LaTeX selection. With no selection, the key keeps its normal VS Code action."
+        },
+        "latexComfort.keybindings.emphasisOnSelection": {
+          "type": "boolean",
+          "default": true,
+          "description": "Use Cmd+I / Ctrl+I to toggle \\emph or \\textit on a LaTeX selection. With no selection, the key keeps its normal VS Code action."
         }
       }
     },
