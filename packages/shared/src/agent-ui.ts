@@ -34,6 +34,29 @@ export interface AgentUiCommand {
   inputHint?: string;
 }
 
+export interface AgentUiPromptCapabilities {
+  image: boolean;
+  audio: boolean;
+  embeddedContext: boolean;
+}
+
+export interface AgentUiAttachment {
+  id: string;
+  kind: "image" | "file";
+  name: string;
+  mimeType: string;
+  size: number;
+  /** Base64 payload for images and binary files. */
+  data?: string;
+  /** Decoded text for text files. */
+  text?: string;
+}
+
+export interface AgentUiAttachmentSummary {
+  name: string;
+  kind: "image" | "file";
+}
+
 export interface AgentUiAuthMethod {
   id: string;
   label: string;
@@ -58,6 +81,7 @@ export type AgentUiEntry =
       at: number;
       text: string;
       contextLabel?: string;
+      attachments?: AgentUiAttachmentSummary[];
     }
   | {
       type: "assistant";
@@ -144,6 +168,7 @@ export interface AgentUiSnapshot {
   entries: AgentUiEntry[];
   configOptions: AgentUiConfigOption[];
   availableCommands: AgentUiCommand[];
+  promptCapabilities: AgentUiPromptCapabilities;
   currentModel?: string;
   visibleModels?: string[];
   authMethods: AgentUiAuthMethod[];
@@ -160,7 +185,7 @@ export type AgentHostToWebviewMessage = {
 
 export type AgentWebviewToHostMessage =
   | { type: "agentWebviewReady" }
-  | { type: "agentSend"; text: string }
+  | { type: "agentSend"; text: string; attachments?: AgentUiAttachment[] }
   | { type: "agentCancel" }
   | { type: "agentNewThread" }
   | { type: "agentOpenThread"; threadId: string }

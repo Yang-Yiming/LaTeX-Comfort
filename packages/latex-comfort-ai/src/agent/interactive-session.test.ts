@@ -88,6 +88,77 @@ describe("InteractiveAcpSession", () => {
     ]);
   });
 
+  it("sends image and file attachments as ACP content blocks", async () => {
+    let promptBlocks: acp.ContentBlock[] | undefined;
+    const fakeAgent = acp
+      .agent({ name: "attachment-agent" })
+      .onRequest(acp.methods.agent.initialize, () => ({
+        protocolVersion: acp.PROTOCOL_VERSION,
+        agentCapabilities: {
+          promptCapabilities: { image: true, embeddedContext: true },
+        },
+      }))
+      .onRequest(acp.methods.agent.session.new, () => ({
+        sessionId: "session-attachments",
+      }))
+      .onRequest(acp.methods.agent.session.prompt, ({ params }) => {
+        promptBlocks = Array.isArray(params.prompt) ? params.prompt : [params.prompt];
+        return { stopReason: "end_turn" };
+      });
+
+    const session = new InteractiveAcpSession({
+      target: fakeAgent,
+      agentId: "codex",
+      cwd: "/workspace",
+      onEvent: () => undefined,
+      requestPermission: async () => undefined,
+    });
+
+    const started = await session.start();
+    await session.prompt("Use these", [
+      {
+        id: "image-1",
+        kind: "image",
+        name: "figure.png",
+        mimeType: "image/png",
+        size: 4,
+        data: "aGVsbG8=",
+      },
+      {
+        id: "file-1",
+        kind: "file",
+        name: "main.tex",
+        mimeType: "text/plain",
+        size: 6,
+        text: "hello",
+      },
+    ]);
+    await session.dispose();
+
+    expect(started.promptCapabilities).toEqual({
+      image: true,
+      audio: false,
+      embeddedContext: true,
+    });
+    expect(promptBlocks).toEqual([
+      { type: "text", text: "Use these" },
+      {
+        type: "image",
+        data: "aGVsbG8=",
+        mimeType: "image/png",
+        uri: "attachment://figure.png",
+      },
+      {
+        type: "resource",
+        resource: {
+          uri: "attachment://main.tex",
+          mimeType: "text/plain",
+          text: "hello",
+        },
+      },
+    ]);
+  });
+
   it("preserves tool identity and asks for permission inline", async () => {
     const events: AgentEvent[] = [];
     const requestPermission = vi.fn(async () => "allow");

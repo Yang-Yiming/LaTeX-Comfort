@@ -26,6 +26,11 @@ function snapshot(overrides: Partial<AgentUiSnapshot> = {}): AgentUiSnapshot {
       },
     ],
     availableCommands: [],
+    promptCapabilities: {
+      image: true,
+      audio: false,
+      embeddedContext: true,
+    },
     currentModel: "provider/model",
     authMethods: [],
     threads: [],
@@ -91,6 +96,7 @@ describe("AgentView", () => {
             at: 1,
             text: "Fix the introduction",
             contextLabel: "main.tex · selection",
+            attachments: [{ name: "figure.png", kind: "image" }],
           },
           {
             type: "assistant",
@@ -123,6 +129,7 @@ describe("AgentView", () => {
     );
 
     expect(html).toContain("Fix the introduction");
+    expect(html).toContain("figure.png");
     expect(html).toContain("I will update the paragraph.");
     expect(html).toContain("Edit main.tex");
     expect(html).toContain("Approve this tool call?");

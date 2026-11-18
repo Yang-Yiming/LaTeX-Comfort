@@ -19,6 +19,11 @@ function runtime(overrides: Partial<AgentRuntime> = {}): AgentRuntime {
       sessionId: "session-1",
       configOptions: [],
       availableCommands: [],
+      promptCapabilities: {
+        image: false,
+        audio: false,
+        embeddedContext: false,
+      },
       authMethods: [],
       resumed: false,
       capabilities: {
@@ -186,6 +191,11 @@ describe("AgentPanelController", () => {
           },
         ] satisfies AgentConfigOption[],
         availableCommands: [],
+        promptCapabilities: {
+          image: false,
+          audio: false,
+          embeddedContext: false,
+        },
         authMethods: [] satisfies AgentAuthMethod[],
       })),
       setConfigOption: vi.fn(async () => [

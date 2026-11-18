@@ -55,6 +55,32 @@ describe("agent panel state", () => {
     ).toEqual(["Answer one", "Answer two"]);
   });
 
+  it("records attachment names on the user turn", () => {
+    let state = createAgentPanelState({
+      agentId: "codex",
+      agentLabel: "Codex",
+      now: () => 18,
+    });
+    state = appendUserMessage(state, "Use these", undefined, [
+      {
+        id: "image-1",
+        kind: "image",
+        name: "figure.png",
+        mimeType: "image/png",
+        size: 3,
+        data: "abc",
+      },
+    ]);
+
+    expect(state.entries[0]).toEqual({
+      type: "user",
+      id: "user-1",
+      at: 18,
+      text: "Use these",
+      attachments: [{ name: "figure.png", kind: "image" }],
+    });
+  });
+
   it("updates one tool card by tool call id", () => {
     let state = createAgentPanelState({
       agentId: "opencode",

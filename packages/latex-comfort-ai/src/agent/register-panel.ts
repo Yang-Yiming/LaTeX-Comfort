@@ -165,7 +165,7 @@ export function registerAgentPanel(
   const dispatch = async (message: AgentWebviewToHostMessage): Promise<void> => {
     switch (message.type) {
       case "agentSend":
-        await controller.submit(message.text);
+        await controller.submit(message.text, message.attachments);
         return;
       case "agentCancel":
         await controller.cancel();

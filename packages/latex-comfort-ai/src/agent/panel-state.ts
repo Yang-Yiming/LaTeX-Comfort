@@ -1,5 +1,6 @@
 import type {
   AgentUiAgentId,
+  AgentUiAttachment,
   AgentUiConfigOption,
   AgentUiEntry,
   AgentUiLocation,
@@ -33,6 +34,11 @@ export function createAgentPanelState(
     entries: [],
     configOptions: [],
     availableCommands: [],
+    promptCapabilities: {
+      image: false,
+      audio: false,
+      embeddedContext: false,
+    },
     authMethods: [],
     nextUserId: 1,
     fallbackAssistantId: "assistant-1",
@@ -77,6 +83,7 @@ export function appendUserMessage(
   state: AgentPanelState,
   text: string,
   contextLabel?: string,
+  attachments: AgentUiAttachment[] = [],
 ): AgentPanelState {
   const entry: AgentUiEntry = {
     type: "user",
@@ -84,6 +91,14 @@ export function appendUserMessage(
     at: state.now(),
     text,
     ...(contextLabel ? { contextLabel } : {}),
+    ...(attachments.length > 0
+      ? {
+          attachments: attachments.map((attachment) => ({
+            name: attachment.name,
+            kind: attachment.kind,
+          })),
+        }
+      : {}),
   };
   return {
     ...update(state, { entries: [...state.entries, entry] }),

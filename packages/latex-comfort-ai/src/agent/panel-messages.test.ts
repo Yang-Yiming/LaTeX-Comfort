@@ -11,6 +11,33 @@ describe("parseAgentWebviewMessage", () => {
     ).toEqual({ type: "agentSend", text: "  Fix the build  " });
   });
 
+  it("accepts image and file attachments", () => {
+    const attachments = [
+      {
+        id: "image-1",
+        kind: "image" as const,
+        name: "figure.png",
+        mimeType: "image/png",
+        size: 128,
+        data: "aGVsbG8=",
+      },
+      {
+        id: "file-1",
+        kind: "file" as const,
+        name: "main.tex",
+        mimeType: "text/plain",
+        size: 12,
+        text: "\\documentclass{article}",
+      },
+    ];
+    expect(
+      parseAgentWebviewMessage({ type: "agentSend", text: "Use these", attachments }),
+    ).toEqual({ type: "agentSend", text: "Use these", attachments });
+    expect(
+      parseAgentWebviewMessage({ type: "agentSend", text: "", attachments: [attachments[0]] }),
+    ).toEqual({ type: "agentSend", text: "", attachments: [attachments[0]] });
+  });
+
   it("accepts a permission decision", () => {
     expect(
       parseAgentWebviewMessage({
@@ -29,6 +56,13 @@ describe("parseAgentWebviewMessage", () => {
     expect(parseAgentWebviewMessage(null)).toBeNull();
     expect(parseAgentWebviewMessage({ type: "agentSend", text: 3 })).toBeNull();
     expect(parseAgentWebviewMessage({ type: "agentSend", text: "" })).toBeNull();
+    expect(
+      parseAgentWebviewMessage({
+        type: "agentSend",
+        text: "bad",
+        attachments: [{ id: "x", kind: "image", name: "", mimeType: "image/png", size: 1, data: "x" }],
+      }),
+    ).toBeNull();
     expect(
       parseAgentWebviewMessage({
         type: "agentResolvePermission",

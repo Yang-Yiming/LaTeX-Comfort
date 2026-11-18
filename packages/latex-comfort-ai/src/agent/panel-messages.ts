@@ -1,7 +1,13 @@
 import type {
   AgentUiAgentId,
+  AgentUiAttachment,
   AgentWebviewToHostMessage,
 } from "@latex-comfort/shared";
+
+const MAX_ATTACHMENTS = 8;
+const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+const MAX_ATTACHMENT_TEXT_CHARS = 1_000_000;
+const MAX_ATTACHMENT_DATA_CHARS = 16 * 1024 * 1024;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -15,6 +21,49 @@ function agentId(value: unknown): value is AgentUiAgentId {
   return value === "opencode" || value === "codex";
 }
 
+function parseAttachment(value: unknown): AgentUiAttachment | null {
+  if (!isRecord(value)) return null;
+  if (
+    !nonEmpty(value.id) ||
+    (value.kind !== "image" && value.kind !== "file") ||
+    !nonEmpty(value.name) ||
+    value.name.length > 255 ||
+    !nonEmpty(value.mimeType) ||
+    typeof value.size !== "number" ||
+    !Number.isFinite(value.size) ||
+    value.size < 0 ||
+    value.size > MAX_ATTACHMENT_BYTES
+  ) {
+    return null;
+  }
+  if (value.text !== undefined && typeof value.text !== "string") return null;
+  if (value.data !== undefined && typeof value.data !== "string") return null;
+  if (value.text === undefined && value.data === undefined) return null;
+  if (
+    (typeof value.text === "string" && value.text.length > MAX_ATTACHMENT_TEXT_CHARS) ||
+    (typeof value.data === "string" && value.data.length > MAX_ATTACHMENT_DATA_CHARS)
+  ) {
+    return null;
+  }
+  return {
+    id: value.id,
+    kind: value.kind,
+    name: value.name,
+    mimeType: value.mimeType,
+    size: value.size,
+    ...(typeof value.data === "string" ? { data: value.data } : {}),
+    ...(typeof value.text === "string" ? { text: value.text } : {}),
+  };
+}
+
+function parseAttachments(value: unknown): AgentUiAttachment[] | undefined | null {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || value.length > MAX_ATTACHMENTS) return null;
+  const attachments = value.map(parseAttachment);
+  if (attachments.some((attachment) => attachment === null)) return null;
+  return attachments as AgentUiAttachment[];
+}
+
 export function parseAgentWebviewMessage(
   value: unknown,
 ): AgentWebviewToHostMessage | null {
@@ -23,10 +72,17 @@ export function parseAgentWebviewMessage(
   switch (value.type) {
     case "agentWebviewReady":
       return { type: "agentWebviewReady" };
-    case "agentSend":
-      return nonEmpty(value.text) && value.text.length <= 100_000
-        ? { type: "agentSend", text: value.text }
-        : null;
+    case "agentSend": {
+      if (typeof value.text !== "string" || value.text.length > 100_000) return null;
+      const attachments = parseAttachments(value.attachments);
+      if (attachments === null) return null;
+      if (!value.text && (attachments?.length ?? 0) === 0) return null;
+      return {
+        type: "agentSend",
+        text: value.text,
+        ...(attachments && attachments.length > 0 ? { attachments } : {}),
+      };
+    }
     case "agentCancel":
       return { type: "agentCancel" };
     case "agentNewThread":

@@ -17,6 +17,11 @@ const INITIAL: AgentUiSnapshot = {
   entries: [],
   configOptions: [],
   availableCommands: [],
+  promptCapabilities: {
+    image: false,
+    audio: false,
+    embeddedContext: false,
+  },
   authMethods: [],
   threads: [],
   turns: [],
@@ -37,7 +42,13 @@ export function AgentApp() {
   return (
     <AgentView
       snapshot={snapshot}
-      onSend={(text) => vscode.postMessage({ type: "agentSend", text })}
+      onSend={(text, attachments) =>
+        vscode.postMessage({
+          type: "agentSend",
+          text,
+          ...(attachments && attachments.length > 0 ? { attachments } : {}),
+        })
+      }
       onCancel={() => vscode.postMessage({ type: "agentCancel" })}
       onNewThread={() => vscode.postMessage({ type: "agentNewThread" })}
       onOpenThread={(threadId) =>

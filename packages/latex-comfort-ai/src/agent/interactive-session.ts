@@ -1,4 +1,8 @@
 import * as acp from "@agentclientprotocol/sdk";
+import type {
+  AgentUiAttachment,
+  AgentUiPromptCapabilities,
+} from "@latex-comfort/shared";
 import { mapAvailableCommands, mapConfigOptions, mapSessionUpdate } from "./acp-events";
 import type { AgentRemoteSession } from "./history-types";
 import type {
@@ -38,6 +42,7 @@ export interface InteractiveSessionStart {
   sessionId: string;
   configOptions: AgentConfigOption[];
   availableCommands: AgentCommand[];
+  promptCapabilities: AgentUiPromptCapabilities;
   authMethods: AgentAuthMethod[];
   resumed: boolean;
   capabilities: {
@@ -91,6 +96,11 @@ export class InteractiveAcpSession {
   private authMethods: AgentAuthMethod[] = [];
   private configOptions: AgentConfigOption[] = [];
   private availableCommands: AgentCommand[] = [];
+  private promptCapabilities: AgentUiPromptCapabilities = {
+    image: false,
+    audio: false,
+    embeddedContext: false,
+  };
   private disposed = false;
   private promptRunning = false;
   private cancelRequested = false;
@@ -115,6 +125,7 @@ export class InteractiveAcpSession {
         sessionId: this.sessionId,
         configOptions: this.configOptions,
         availableCommands: this.availableCommands,
+        promptCapabilities: this.promptCapabilities,
         authMethods: this.authMethods,
         resumed: true,
         capabilities: this.capabilities,
@@ -194,6 +205,12 @@ export class InteractiveAcpSession {
       );
     }
     this.authMethods = (initialized.authMethods ?? []).map(authMethodView);
+    const promptCapabilities = initialized.agentCapabilities?.promptCapabilities;
+    this.promptCapabilities = {
+      image: Boolean(promptCapabilities?.image),
+      audio: Boolean(promptCapabilities?.audio),
+      embeddedContext: Boolean(promptCapabilities?.embeddedContext),
+    };
     const sessionCapabilities = initialized.agentCapabilities?.sessionCapabilities;
     this.capabilities = {
       list: Boolean(sessionCapabilities?.list),
@@ -260,13 +277,17 @@ export class InteractiveAcpSession {
       sessionId: this.sessionId,
       configOptions: this.configOptions,
       availableCommands: this.availableCommands,
+      promptCapabilities: this.promptCapabilities,
       authMethods: this.authMethods,
       resumed,
       capabilities: this.capabilities,
     };
   }
 
-  async prompt(prompt: string): Promise<void> {
+  async prompt(
+    prompt: string,
+    attachments: AgentUiAttachment[] = [],
+  ): Promise<void> {
     if (this.disposed) throw new Error("The agent session has been disposed.");
     if (this.promptRunning) throw new Error("The agent is already running.");
     if (!this.sessionId || !this.connection) {
@@ -277,11 +298,11 @@ export class InteractiveAcpSession {
     this.cancelRequested = false;
     try {
       try {
-        await this.runPrompt(prompt);
+        await this.runPrompt(prompt, attachments);
       } catch (error) {
         if (!isAuthenticationRequired(error)) throw error;
         await this.authenticate();
-        await this.runPrompt(prompt);
+        await this.runPrompt(prompt, attachments);
       }
       if (this.cancelRequested) throw cancellableAbort();
     } finally {
@@ -440,7 +461,10 @@ export class InteractiveAcpSession {
     return false;
   }
 
-  private async runPrompt(prompt: string): Promise<void> {
+  private async runPrompt(
+    prompt: string,
+    attachments: AgentUiAttachment[],
+  ): Promise<void> {
     const connection = this.connection;
     const sessionId = this.sessionId;
     if (!connection || !sessionId) {
@@ -450,7 +474,7 @@ export class InteractiveAcpSession {
       acp.methods.agent.session.prompt,
       {
         sessionId,
-        prompt: [{ type: "text", text: prompt }],
+        prompt: this.promptBlocks(prompt, attachments),
       },
     );
 
@@ -466,6 +490,62 @@ export class InteractiveAcpSession {
       this.applyUpdate(next.update);
     }
     await response;
+  }
+
+  private promptBlocks(
+    prompt: string,
+    attachments: AgentUiAttachment[],
+  ): acp.ContentBlock[] {
+    const blocks: acp.ContentBlock[] = [];
+    if (prompt) blocks.push({ type: "text", text: prompt });
+    for (const attachment of attachments) {
+      const uri = `attachment://${encodeURIComponent(attachment.name)}`;
+      if (attachment.kind === "image") {
+        if (!this.promptCapabilities.image || !attachment.data) {
+          throw new Error(`This agent cannot receive the image ${attachment.name}.`);
+        }
+        blocks.push({
+          type: "image",
+          data: attachment.data,
+          mimeType: attachment.mimeType,
+          uri,
+        });
+        continue;
+      }
+      if (attachment.text !== undefined) {
+        if (this.promptCapabilities.embeddedContext) {
+          blocks.push({
+            type: "resource",
+            resource: {
+              uri,
+              mimeType: attachment.mimeType,
+              text: attachment.text,
+            },
+          });
+        } else {
+          blocks.push({
+            type: "text",
+            text: `Attached file: ${attachment.name}\n\n${attachment.text}`,
+          });
+        }
+        continue;
+      }
+      if (!this.promptCapabilities.embeddedContext || !attachment.data) {
+        throw new Error(`This agent cannot receive the file ${attachment.name}.`);
+      }
+      blocks.push({
+        type: "resource",
+        resource: {
+          uri,
+          mimeType: attachment.mimeType,
+          blob: attachment.data,
+        },
+      });
+    }
+    if (blocks.length === 0) {
+      throw new Error("A prompt or attachment is required.");
+    }
+    return blocks;
   }
 
   private applyUpdate(update: acp.SessionUpdate): void {

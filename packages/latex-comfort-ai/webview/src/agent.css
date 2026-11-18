@@ -96,6 +96,22 @@ summary:focus-visible {
   outline-offset: 1px;
 }
 
+.lattice-agent-shell[data-dragging]::after {
+  content: "Drop files to attach";
+  position: absolute;
+  z-index: 100;
+  inset: 8px;
+  display: grid;
+  place-items: center;
+  border: 1px dashed var(--agent-accent);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--agent-accent) 10%, var(--agent-surface));
+  color: var(--agent-ink);
+  font-size: 13px;
+  font-weight: 500;
+  pointer-events: none;
+}
+
 .lattice-agent-shell {
   position: relative;
   height: 100%;
@@ -525,6 +541,15 @@ summary:focus-visible {
   white-space: nowrap;
 }
 
+.lattice-user-attachments {
+  max-width: 80%;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
 .lattice-user-bubble {
   width: fit-content;
   max-width: 80%;
@@ -760,6 +785,25 @@ summary:focus-visible {
   margin-top: 2px;
 }
 
+.lattice-notice-dismiss {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.lattice-notice-dismiss:hover {
+  background: var(--agent-hover);
+}
+
 .lattice-running-row {
   display: inline-flex;
   align-items: center;
@@ -888,13 +932,94 @@ summary:focus-visible {
   min-width: 0;
 }
 
+.lattice-composer-editor-row {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: start;
+  gap: 6px;
+}
+
+.lattice-add-attachment {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--agent-muted);
+  cursor: pointer;
+  transition: background-color var(--agent-motion), color var(--agent-motion);
+}
+
+.lattice-add-attachment:hover {
+  background: var(--agent-hover);
+  color: var(--agent-ink);
+}
+
+.lattice-file-input {
+  display: none;
+}
+
+.lattice-composer-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin: 0 0 8px 34px;
+}
+
+.lattice-attachment-chip {
+  max-width: 220px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 0 6px 0 7px;
+  border: 1px solid var(--agent-border);
+  border-radius: 999px;
+  background: var(--agent-reading);
+  color: var(--agent-muted);
+  font-size: 10.5px;
+  line-height: 14px;
+}
+
+.lattice-attachment-chip > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lattice-attachment-chip[data-kind="image"] {
+  color: var(--agent-starter-blue);
+}
+
+.lattice-attachment-chip button {
+  width: 16px;
+  height: 16px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--agent-muted);
+  cursor: pointer;
+}
+
+.lattice-attachment-chip button:hover {
+  background: var(--agent-hover);
+  color: var(--agent-ink);
+}
+
 .lattice-composer-editor textarea {
   width: 100%;
   min-height: 42px;
   max-height: 200px;
   display: block;
   margin: 0;
-  padding: 0;
+  padding: 3px 0 0;
   border: 0;
   outline: 0;
   resize: none;

@@ -35,9 +35,9 @@ export async function createInteractiveRuntime(
         throw process.failure(error);
       }
     },
-    prompt: async (prompt) => {
+    prompt: async (prompt, attachments = []) => {
       try {
-        await session.prompt(prompt);
+        await session.prompt(prompt, attachments);
       } catch (error) {
         throw process.failure(error);
       }

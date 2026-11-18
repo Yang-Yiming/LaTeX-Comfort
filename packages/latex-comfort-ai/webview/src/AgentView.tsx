@@ -21,6 +21,7 @@ import {
 } from "react";
 import type {
   AgentUiAgentId,
+  AgentUiAttachment,
   AgentUiCommand,
   AgentUiConfigOption,
   AgentUiContext,
@@ -30,7 +31,7 @@ import type {
 
 export interface AgentViewProps {
   snapshot: AgentUiSnapshot;
-  onSend(text: string): void;
+  onSend(text: string, attachments?: AgentUiAttachment[]): void;
   onCancel(): void;
   onNewThread(): void;
   onOpenThread(threadId: string): void;
@@ -128,6 +129,7 @@ function Icon({
     | "trash"
     | "diff"
     | "selection"
+    | "image"
     | "agent";
   size?: number;
   className?: string;
@@ -177,6 +179,8 @@ function Icon({
       return <svg {...common}><path d="M5 6h6M8 3v6M13 18h6M13 12h6M13 9h6" /></svg>;
     case "selection":
       return <svg {...common}><path d="M8 4H5a1 1 0 0 0-1 1v3M16 4h3a1 1 0 0 1 1 1v3M8 20H5a1 1 0 0 1-1-1v-3M16 20h3a1 1 0 0 0 1-1v-3M8 12h8M8 16h5M8 8h6" /></svg>;
+    case "image":
+      return <svg {...common}><rect x="3.5" y="4.5" width="17" height="15" rx="2" /><circle cx="9" cy="10" r="1.5" /><path d="m5 17 4.5-4.5 3 3 2.5-2.5 4 4" /></svg>;
     case "agent":
       return <svg {...common}><rect x="5" y="7" width="14" height="11" rx="3" /><path d="M12 3v4M9 12h.1M15 12h.1M9 16h6" /></svg>;
   }
@@ -242,6 +246,96 @@ function formatHistoryTime(timestamp: number): string {
 function shortPath(path: string): string {
   const parts = path.replaceAll("\\", "/").split("/");
   return parts[parts.length - 1] || path;
+}
+
+const MAX_ATTACHMENTS = 8;
+const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+const MAX_TOTAL_ATTACHMENT_BYTES = 20 * 1024 * 1024;
+const TEXT_FILE_EXTENSIONS = new Set([
+  "bib", "cls", "csv", "css", "html", "js", "json", "log", "md", "py", "sh",
+  "sty", "tex", "toml", "ts", "tsx", "txt", "xml", "yaml", "yml",
+]);
+
+function attachmentId(): string {
+  return globalThis.crypto?.randomUUID?.() ?? `attachment-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function isTextFile(file: File): boolean {
+  if (file.type.startsWith("text/")) return true;
+  const extension = file.name.split(".").pop()?.toLowerCase();
+  return extension ? TEXT_FILE_EXTENSIONS.has(extension) : false;
+}
+
+function readAsDataUrl(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error ?? new Error(`Could not read ${file.name}.`));
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.readAsDataURL(file);
+  });
+}
+
+function readAsText(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(reader.error ?? new Error(`Could not read ${file.name}.`));
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.readAsText(file);
+  });
+}
+
+async function fileToAttachment(file: File): Promise<AgentUiAttachment> {
+  const image = file.type.startsWith("image/");
+  if (image) {
+    const dataUrl = await readAsDataUrl(file);
+    return {
+      id: attachmentId(),
+      kind: "image",
+      name: file.name,
+      mimeType: file.type || "application/octet-stream",
+      size: file.size,
+      data: dataUrl.slice(dataUrl.indexOf(",") + 1),
+    };
+  }
+  if (isTextFile(file)) {
+    return {
+      id: attachmentId(),
+      kind: "file",
+      name: file.name,
+      mimeType: file.type || "text/plain",
+      size: file.size,
+      text: await readAsText(file),
+    };
+  }
+  const dataUrl = await readAsDataUrl(file);
+  return {
+    id: attachmentId(),
+    kind: "file",
+    name: file.name,
+    mimeType: file.type || "application/octet-stream",
+    size: file.size,
+    data: dataUrl.slice(dataUrl.indexOf(",") + 1),
+  };
+}
+
+function AttachmentChip({
+  attachment,
+  onRemove,
+}: {
+  attachment: AgentUiAttachment;
+  onRemove?: () => void;
+}) {
+  return (
+    <span className="lattice-attachment-chip" data-kind={attachment.kind}>
+      <Icon name={attachment.kind === "image" ? "image" : "file"} size={12} />
+      <span title={attachment.name}>{attachment.name}</span>
+      {onRemove ? (
+        <button type="button" aria-label={`Remove ${attachment.name}`} onClick={onRemove}>
+          <Icon name="close" size={10} />
+        </button>
+      ) : null}
+    </span>
+  );
 }
 
 function contextName(context: AgentUiContext): string {
@@ -505,9 +599,21 @@ function AgentEntry({
               <span>{entry.contextLabel}</span>
             </div>
           ) : null}
-          <div className="lattice-user-bubble">
-            <p>{entry.text}</p>
-          </div>
+          {entry.attachments?.length ? (
+            <div className="lattice-user-attachments">
+              {entry.attachments.map((attachment, index) => (
+                <span className="lattice-attachment-chip" data-kind={attachment.kind} key={`${attachment.name}:${index}`}>
+                  <Icon name={attachment.kind === "image" ? "image" : "file"} size={12} />
+                  <span title={attachment.name}>{attachment.name}</span>
+                </span>
+              ))}
+            </div>
+          ) : null}
+          {entry.text ? (
+            <div className="lattice-user-bubble">
+              <p>{entry.text}</p>
+            </div>
+          ) : null}
           <div className="lattice-message-meta is-user">{formatTime(entry.at)}</div>
         </article>
       );
@@ -871,6 +977,11 @@ function AgentComposer({
   send,
   stackRef,
   textareaRef,
+  attachments,
+  attachmentError,
+  onAddFiles,
+  onRemoveAttachment,
+  onDismissAttachmentError,
   pendingPermission,
   onCancel,
   onResolvePermission,
@@ -885,6 +996,11 @@ function AgentComposer({
   send(): void;
   stackRef: { current: HTMLDivElement | null };
   textareaRef: { current: HTMLTextAreaElement | null };
+  attachments: AgentUiAttachment[];
+  attachmentError?: string;
+  onAddFiles(files: File[]): void;
+  onRemoveAttachment(id: string): void;
+  onDismissAttachmentError(): void;
   pendingPermission: Extract<AgentUiEntry, { type: "permission" }> | null;
   onCancel(): void;
   onResolvePermission(permissionId: string, optionId?: string): void;
@@ -893,6 +1009,7 @@ function AgentComposer({
   onAuthenticate(methodId?: string): void;
   onOpenSettings(): void;
 }) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const busy = snapshot.phase === "running" || snapshot.phase === "waiting_permission" || snapshot.phase === "authentication_required";
   const stop = snapshot.phase === "running" || snapshot.phase === "waiting_permission";
   const [commandIndex, setCommandIndex] = useState(0);
@@ -954,6 +1071,15 @@ function AgentComposer({
       <div className="lattice-composer-stack" ref={stackRef}>
         <AgentErrorBanner snapshot={snapshot} onOpenSettings={onOpenSettings} />
         <AuthBanner snapshot={snapshot} onAuthenticate={onAuthenticate} />
+        {attachmentError ? (
+          <div className="lattice-inline-notice" data-severity="error">
+            <Icon name="error" size={13} />
+            <span>{attachmentError}</span>
+            <button type="button" className="lattice-notice-dismiss" aria-label="Dismiss attachment error" onClick={onDismissAttachmentError}>
+              <Icon name="close" size={11} />
+            </button>
+          </div>
+        ) : null}
         {pendingPermission ? (
           <AgentPermissionPanel entry={pendingPermission} onResolve={onResolvePermission} />
         ) : null}
@@ -966,7 +1092,38 @@ function AgentComposer({
               onSelect={selectCommand}
             />
           ) : null}
-          <div className="lattice-composer-editor">
+          {attachments.length > 0 ? (
+            <div className="lattice-composer-attachments">
+              {attachments.map((attachment) => (
+                <AttachmentChip
+                  key={attachment.id}
+                  attachment={attachment}
+                  onRemove={() => onRemoveAttachment(attachment.id)}
+                />
+              ))}
+            </div>
+          ) : null}
+          <div className="lattice-composer-editor-row">
+            <button
+              type="button"
+              className="lattice-add-attachment"
+              aria-label="Add attachment"
+              title="Add attachment"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Icon name="plus" size={15} />
+            </button>
+            <input
+              ref={fileInputRef}
+              className="lattice-file-input"
+              type="file"
+              multiple
+              onChange={(event) => {
+                const files = event.target.files ? Array.from(event.target.files) : [];
+                if (files.length > 0) onAddFiles(files);
+                event.target.value = "";
+              }}
+            />
             <textarea
               ref={textareaRef}
               rows={1}
@@ -979,6 +1136,13 @@ function AgentComposer({
                 setCommandDismissed(false);
               }}
               onKeyDown={onKeyDown}
+              onPaste={(event) => {
+                const files = event.clipboardData.files ? Array.from(event.clipboardData.files) : [];
+                if (files.length > 0) {
+                  event.preventDefault();
+                  onAddFiles(files);
+                }
+              }}
             />
           </div>
           <div className="lattice-composer-footer">
@@ -1013,7 +1177,7 @@ function AgentComposer({
                   className="lattice-send-button"
                   aria-label="Send prompt"
                   title="Send prompt"
-                  disabled={!draft.trim() || busy}
+                  disabled={(!draft.trim() && attachments.length === 0) || busy}
                   onClick={send}
                 >
                   <Icon name="send" size={15} />
@@ -1139,6 +1303,9 @@ export function AgentView(props: AgentViewProps) {
   const [draft, setDraft] = useState("");
   const [historyOpen, setHistoryOpen] = useState(false);
   const [composerHeight, setComposerHeight] = useState(0);
+  const [attachments, setAttachments] = useState<AgentUiAttachment[]>([]);
+  const [attachmentError, setAttachmentError] = useState<string | undefined>();
+  const [dragActive, setDragActive] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const stackRef = useRef<HTMLDivElement>(null);
@@ -1178,15 +1345,61 @@ export function AgentView(props: AgentViewProps) {
     const node = scrollRef.current;
     if (!node) return;
     if (nearBottomRef.current) node.scrollTop = node.scrollHeight;
-  }, [snapshot.revision]);
+  }, [snapshot.revision, composerHeight]);
+
+  useEffect(() => {
+    setAttachments([]);
+    setAttachmentError(undefined);
+  }, [snapshot.threadId]);
+
+  const addFiles = useCallback(async (files: File[]) => {
+    if (files.length === 0) return;
+    setAttachmentError(undefined);
+    const next = [...attachments];
+    let totalBytes = next.reduce((sum, attachment) => sum + attachment.size, 0);
+    let error: string | undefined;
+    for (const file of files) {
+      if (next.length >= MAX_ATTACHMENTS) {
+        error = `You can attach at most ${MAX_ATTACHMENTS} files.`;
+        break;
+      }
+      if (file.size > MAX_ATTACHMENT_BYTES) {
+        error = `${file.name} is larger than 10 MB.`;
+        continue;
+      }
+      if (totalBytes + file.size > MAX_TOTAL_ATTACHMENT_BYTES) {
+        error = "Attachments are limited to 20 MB in total.";
+        break;
+      }
+      if (file.type.startsWith("image/") && !snapshot.promptCapabilities.image) {
+        error = `${snapshot.agentLabel} does not support image attachments.`;
+        continue;
+      }
+      if (!file.type.startsWith("image/") && !isTextFile(file) && !snapshot.promptCapabilities.embeddedContext) {
+        error = `${snapshot.agentLabel} does not support binary file attachments.`;
+        continue;
+      }
+      try {
+        const attachment = await fileToAttachment(file);
+        next.push(attachment);
+        totalBytes += attachment.size;
+      } catch (cause) {
+        error = cause instanceof Error ? cause.message : `Could not attach ${file.name}.`;
+      }
+    }
+    setAttachments(next);
+    if (error) setAttachmentError(error);
+  }, [attachments, snapshot.agentLabel, snapshot.promptCapabilities]);
 
   const send = useCallback(() => {
     const text = draft.trim();
-    if (!text || busy) return;
+    if ((!text && attachments.length === 0) || busy) return;
     setDraft("");
-    props.onSend(text);
+    setAttachments([]);
+    setAttachmentError(undefined);
+    props.onSend(text, attachments.length > 0 ? attachments : undefined);
     textareaRef.current?.focus();
-  }, [busy, draft, props]);
+  }, [attachments, busy, draft, props]);
 
   const onScroll = () => {
     const node = scrollRef.current;
@@ -1202,8 +1415,29 @@ export function AgentView(props: AgentViewProps) {
   return (
     <main
       className="lattice-agent-shell"
+      data-dragging={dragActive || undefined}
       aria-label="LaTeX Comfort Agent"
       style={{ "--agent-composer-height": `${composerHeight}px` } as CSSProperties}
+      onDragEnter={(event) => {
+        if (!event.dataTransfer.types.includes("Files")) return;
+        event.preventDefault();
+        setDragActive(true);
+      }}
+      onDragOver={(event) => {
+        if (!event.dataTransfer.types.includes("Files")) return;
+        event.preventDefault();
+        setDragActive(true);
+      }}
+      onDragLeave={(event) => {
+        if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+        setDragActive(false);
+      }}
+      onDrop={(event) => {
+        event.preventDefault();
+        setDragActive(false);
+        const files = event.dataTransfer.files ? Array.from(event.dataTransfer.files) : [];
+        if (files.length > 0) void addFiles(files);
+      }}
     >
       <header className="lattice-agent-header">
         <div className="lattice-agent-heading">
@@ -1253,6 +1487,11 @@ export function AgentView(props: AgentViewProps) {
           send={send}
           stackRef={stackRef}
           textareaRef={textareaRef}
+          attachments={attachments}
+          attachmentError={attachmentError}
+          onAddFiles={(files) => void addFiles(files)}
+          onRemoveAttachment={(id) => setAttachments((current) => current.filter((attachment) => attachment.id !== id))}
+          onDismissAttachmentError={() => setAttachmentError(undefined)}
           pendingPermission={pendingPermission}
           onCancel={props.onCancel}
           onResolvePermission={props.onResolvePermission}

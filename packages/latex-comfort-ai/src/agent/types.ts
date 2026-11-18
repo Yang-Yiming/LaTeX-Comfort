@@ -1,3 +1,5 @@
+import type { AgentUiAttachment } from "@latex-comfort/shared";
+
 export type AgentId = "opencode" | "codex";
 
 export interface AgentSettings {
@@ -58,6 +60,7 @@ export interface AgentRunRequest {
   definition: AgentDefinition;
   cwd: string;
   prompt: string;
+  attachments?: AgentUiAttachment[];
   onEvent(event: AgentEvent): void;
   requestPermission(request: AgentPermissionRequest): Promise<string | undefined>;
   selectModel?(selection: AgentModelSelection): Promise<string | undefined>;

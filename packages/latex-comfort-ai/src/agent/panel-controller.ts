@@ -1,10 +1,12 @@
 import { randomUUID } from "node:crypto";
 import type {
+  AgentUiAttachment,
   AgentUiAuthMethod,
   AgentUiChangeFile,
   AgentUiConfigOption,
   AgentUiContext,
   AgentUiEntry,
+  AgentUiPromptCapabilities,
   AgentUiSnapshot,
   AgentUiThreadSummary,
   AgentUiTurnSummary,
@@ -44,6 +46,7 @@ export interface AgentRuntime {
     sessionId: string;
     configOptions: AgentConfigOption[];
     availableCommands: AgentCommand[];
+    promptCapabilities: AgentUiPromptCapabilities;
     authMethods: AgentUiAuthMethod[];
     resumed: boolean;
     capabilities: {
@@ -54,7 +57,7 @@ export interface AgentRuntime {
       close: boolean;
     };
   }>;
-  prompt(prompt: string): Promise<void>;
+  prompt(prompt: string, attachments?: AgentUiAttachment[]): Promise<void>;
   cancel(): Promise<void>;
   setConfigOption(
     configId: string,
@@ -233,9 +236,12 @@ export class AgentPanelController {
     }
   }
 
-  async submit(text: string): Promise<void> {
+  async submit(
+    text: string,
+    attachments: AgentUiAttachment[] = [],
+  ): Promise<void> {
     const prompt = text.trim();
-    if (!prompt) return;
+    if (!prompt && attachments.length === 0) return;
     if (
       this.state.phase === "running" ||
       this.state.phase === "waiting_permission" ||
@@ -248,7 +254,7 @@ export class AgentPanelController {
     if (this.state.title === "New thread") {
       this.state = {
         ...this.state,
-        title: prompt.replace(/\s+/g, " ").slice(0, 72),
+        title: (prompt || attachments[0]?.name || "New thread").replace(/\s+/g, " ").slice(0, 72),
         revision: this.state.revision + 1,
       };
     }
@@ -256,6 +262,7 @@ export class AgentPanelController {
       this.state,
       prompt,
       context?.label,
+      attachments,
     );
     this.state = setPhase(this.state, "running");
     this.emit();
@@ -281,7 +288,12 @@ export class AgentPanelController {
       const runtime = await this.ensureRuntime();
       this.state = setPhase(this.state, "running");
       this.emit();
-      await runtime.prompt(`${contextPrompt(context)}${prompt}`);
+      const promptText = `${contextPrompt(context)}${prompt}`;
+      if (attachments.length > 0) {
+        await runtime.prompt(promptText, attachments);
+      } else {
+        await runtime.prompt(promptText);
+      }
       this.state = finishTurn(this.state);
       this.emit();
       await this.recordPendingTurn();
@@ -715,6 +727,7 @@ export class AgentPanelController {
         });
         this.state = {
           ...setPhase(this.state, "ready"),
+          promptCapabilities: started.promptCapabilities,
           authMethods: started.authMethods,
         };
         const model = this.state.configOptions.find(
