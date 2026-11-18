@@ -72,6 +72,27 @@ describe("parseAgentWebviewMessage", () => {
     expect(parseAgentWebviewMessage({ type: "futureAction" })).toBeNull();
   });
 
+  it("accepts a file mention search request", () => {
+    expect(
+      parseAgentWebviewMessage({
+        type: "agentSearchFiles",
+        requestId: "request-1",
+        query: "intro",
+      }),
+    ).toEqual({
+      type: "agentSearchFiles",
+      requestId: "request-1",
+      query: "intro",
+    });
+    expect(
+      parseAgentWebviewMessage({
+        type: "agentSearchFiles",
+        requestId: "",
+        query: "intro",
+      }),
+    ).toBeNull();
+  });
+
   it("validates file locations and config actions", () => {
     expect(
       parseAgentWebviewMessage({

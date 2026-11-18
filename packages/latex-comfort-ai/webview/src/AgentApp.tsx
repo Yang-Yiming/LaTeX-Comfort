@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type {
   AgentHostToWebviewMessage,
+  AgentUiFileMention,
   AgentUiSnapshot,
 } from "@latex-comfort/shared";
 import { AgentView } from "./AgentView";
@@ -29,10 +30,24 @@ const INITIAL: AgentUiSnapshot = {
 
 export function AgentApp() {
   const [snapshot, setSnapshot] = useState<AgentUiSnapshot>(INITIAL);
+  const [fileMentions, setFileMentions] = useState<{
+    requestId: string;
+    files: AgentUiFileMention[];
+  } | null>(null);
+  const searchFiles = useCallback((query: string, requestId: string) => {
+    vscode.postMessage({ type: "agentSearchFiles", query, requestId });
+  }, []);
 
   useEffect(() => {
     const onMessage = (event: MessageEvent<AgentHostToWebviewMessage>) => {
-      if (event.data.type === "agentSnapshot") setSnapshot(event.data.snapshot);
+      if (event.data.type === "agentSnapshot") {
+        setSnapshot(event.data.snapshot);
+      } else if (event.data.type === "agentFileMentions") {
+        setFileMentions({
+          requestId: event.data.requestId,
+          files: event.data.files,
+        });
+      }
     };
     window.addEventListener("message", onMessage);
     vscode.postMessage({ type: "agentWebviewReady" });
@@ -93,6 +108,8 @@ export function AgentApp() {
         })
       }
       onOpenSettings={() => vscode.postMessage({ type: "agentOpenSettings" })}
+      fileMentions={fileMentions}
+      onSearchFiles={searchFiles}
     />
   );
 }

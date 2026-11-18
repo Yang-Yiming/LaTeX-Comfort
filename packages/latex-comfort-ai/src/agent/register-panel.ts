@@ -10,6 +10,7 @@ import {
 import { AgentTurnReview } from "./agent-review";
 import { AgentCheckpointService } from "./checkpoints";
 import { createInteractiveRuntime } from "./interactive-runtime";
+import { findWorkspaceFiles } from "./file-mentions";
 import { AgentPanelController } from "./panel-controller";
 import { AgentPanelSurface } from "./panel-surface";
 import { AgentThreadStore } from "./thread-store";
@@ -227,6 +228,13 @@ export function registerAgentPanel(
           "workbench.action.openSettings",
           "latexComfort.ai.agent",
         );
+        return;
+      case "agentSearchFiles":
+        panel.post({
+          type: "agentFileMentions",
+          requestId: message.requestId,
+          files: await findWorkspaceFiles(message.query),
+        });
         return;
       case "agentWebviewReady":
         return;

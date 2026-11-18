@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import type {
+  AgentHostToWebviewMessage,
   AgentUiSnapshot,
   AgentWebviewToHostMessage,
 } from "@latex-comfort/shared";
@@ -36,6 +37,11 @@ export class AgentPanelSurface implements vscode.Disposable {
   render(snapshot: AgentUiSnapshot): void {
     this.latest = snapshot;
     this.postLatest();
+  }
+
+  post(message: AgentHostToWebviewMessage): void {
+    if (!this.panel || !this.ready) return;
+    void this.panel.webview.postMessage(message);
   }
 
   dispose(): void {

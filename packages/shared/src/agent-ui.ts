@@ -57,6 +57,11 @@ export interface AgentUiAttachmentSummary {
   kind: "image" | "file";
 }
 
+export interface AgentUiFileMention {
+  path: string;
+  name: string;
+}
+
 export interface AgentUiAuthMethod {
   id: string;
   label: string;
@@ -178,10 +183,16 @@ export interface AgentUiSnapshot {
   error?: string;
 }
 
-export type AgentHostToWebviewMessage = {
-  type: "agentSnapshot";
-  snapshot: AgentUiSnapshot;
-};
+export type AgentHostToWebviewMessage =
+  | {
+      type: "agentSnapshot";
+      snapshot: AgentUiSnapshot;
+    }
+  | {
+      type: "agentFileMentions";
+      requestId: string;
+      files: AgentUiFileMention[];
+    };
 
 export type AgentWebviewToHostMessage =
   | { type: "agentWebviewReady" }
@@ -210,4 +221,5 @@ export type AgentWebviewToHostMessage =
   | { type: "agentOpenTurnDiffs"; turnId: string }
   | { type: "agentRestoreTurn"; turnId: string }
   | { type: "agentOpenLocation"; path: string; line?: number }
-  | { type: "agentOpenSettings" };
+  | { type: "agentOpenSettings" }
+  | { type: "agentSearchFiles"; requestId: string; query: string };

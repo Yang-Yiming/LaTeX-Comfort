@@ -12,6 +12,8 @@ authenticated, and keeps one ACP session alive across multiple turns. Models
 load before the first prompt; choose one from the compact model menu in the
 composer. Images and files can be pasted, dropped, or picked with the **+**
 button; the panel only offers content types the connected agent advertises.
+Type `@` in the composer to search workspace files with VS Code's
+`workspace.findFiles`.
 
 The history button keeps saved threads and records the files changed by each
 turn. Open a changed file from **History → Changes** to review it in VS Code's

@@ -26,6 +26,7 @@ import type {
   AgentUiConfigOption,
   AgentUiContext,
   AgentUiEntry,
+  AgentUiFileMention,
   AgentUiSnapshot,
 } from "@latex-comfort/shared";
 
@@ -45,6 +46,8 @@ export interface AgentViewProps {
   onRestoreTurn(turnId: string): void;
   onOpenLocation(path: string, line?: number): void;
   onOpenSettings(): void;
+  fileMentions: { requestId: string; files: AgentUiFileMention[] } | null;
+  onSearchFiles(query: string, requestId: string): void;
 }
 
 const PHASE_LABEL: Record<AgentUiSnapshot["phase"], string> = {
@@ -349,6 +352,45 @@ function contextDetail(context: AgentUiContext): string | null {
 export function slashCommandQuery(draft: string): string | null {
   const match = /^\/([^\s]*)$/.exec(draft);
   return match ? (match[1] ?? "") : null;
+}
+
+export function fileMentionQuery(
+  draft: string,
+): { query: string; start: number } | null {
+  const match = /(?:^|\s)@([^\s]*)$/.exec(draft);
+  if (!match || match.index === undefined) return null;
+  const start = match.index + (match[0].startsWith("@") ? 0 : 1);
+  return { query: match[1] ?? "", start };
+}
+
+function FileMentionMenu({
+  files,
+  activeIndex,
+  onSelect,
+}: {
+  files: AgentUiFileMention[];
+  activeIndex: number;
+  onSelect(file: AgentUiFileMention): void;
+}) {
+  return (
+    <div className="lattice-command-menu" role="listbox" aria-label="Files">
+      {files.map((file, index) => (
+        <button
+          type="button"
+          role="option"
+          aria-selected={index === activeIndex}
+          data-active={index === activeIndex || undefined}
+          className="lattice-command-option"
+          key={file.path}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => onSelect(file)}
+        >
+          <span className="lattice-command-name">@{file.name}</span>
+          <span className="lattice-command-description">{file.path}</span>
+        </button>
+      ))}
+    </div>
+  );
 }
 
 function SlashCommandMenu({
@@ -982,6 +1024,8 @@ function AgentComposer({
   onAddFiles,
   onRemoveAttachment,
   onDismissAttachmentError,
+  fileMentions,
+  onSearchFiles,
   pendingPermission,
   onCancel,
   onResolvePermission,
@@ -1001,6 +1045,8 @@ function AgentComposer({
   onAddFiles(files: File[]): void;
   onRemoveAttachment(id: string): void;
   onDismissAttachmentError(): void;
+  fileMentions: { requestId: string; files: AgentUiFileMention[] } | null;
+  onSearchFiles(query: string, requestId: string): void;
   pendingPermission: Extract<AgentUiEntry, { type: "permission" }> | null;
   onCancel(): void;
   onResolvePermission(permissionId: string, optionId?: string): void;
@@ -1014,7 +1060,13 @@ function AgentComposer({
   const stop = snapshot.phase === "running" || snapshot.phase === "waiting_permission";
   const [commandIndex, setCommandIndex] = useState(0);
   const [commandDismissed, setCommandDismissed] = useState(false);
+  const [mentionIndex, setMentionIndex] = useState(0);
+  const [mentionDismissed, setMentionDismissed] = useState(false);
+  const [mentionRequestId, setMentionRequestId] = useState("");
   const commandQuery = slashCommandQuery(draft);
+  const mention = fileMentionQuery(draft);
+  const mentionQuery = mention?.query;
+  const mentionStart = mention?.start;
   const filteredCommands = useMemo(() => {
     const needle = commandQuery?.trim().toLowerCase();
     if (needle === undefined) return [];
@@ -1026,14 +1078,40 @@ function AgentComposer({
     );
   }, [commandQuery, snapshot.availableCommands]);
   const commandMenuOpen = !commandDismissed && commandQuery !== null && filteredCommands.length > 0;
+  const mentionFiles =
+    fileMentions && fileMentions.requestId === mentionRequestId ? fileMentions.files : [];
+  const mentionMenuOpen =
+    !mentionDismissed && mention !== null && mentionFiles.length > 0;
 
   useEffect(() => {
     setCommandIndex(0);
   }, [commandQuery]);
 
+  useEffect(() => {
+    setMentionIndex(0);
+    setMentionDismissed(false);
+    if (mentionQuery === undefined || mentionStart === undefined) {
+      setMentionRequestId("");
+      return;
+    }
+    const requestId = attachmentId();
+    const timer = window.setTimeout(() => {
+      setMentionRequestId(requestId);
+      onSearchFiles(mentionQuery, requestId);
+    }, 120);
+    return () => window.clearTimeout(timer);
+  }, [mentionQuery, mentionStart, onSearchFiles]);
+
   const selectCommand = (command: AgentUiCommand) => {
     setDraft(`/${command.name} `);
     setCommandDismissed(true);
+    requestAnimationFrame(() => textareaRef.current?.focus());
+  };
+
+  const selectMention = (file: AgentUiFileMention) => {
+    if (!mention) return;
+    setDraft(`${draft.slice(0, mention.start)}@${file.path} `);
+    setMentionDismissed(true);
     requestAnimationFrame(() => textareaRef.current?.focus());
   };
 
@@ -1058,6 +1136,29 @@ function AgentComposer({
       if (event.key === "Escape") {
         event.preventDefault();
         setCommandDismissed(true);
+        return;
+      }
+    }
+    if (mentionMenuOpen) {
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        setMentionIndex((current) => {
+          const offset = event.key === "ArrowDown" ? 1 : -1;
+          return (current + offset + mentionFiles.length) % mentionFiles.length;
+        });
+        return;
+      }
+      if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+        const file = mentionFiles[mentionIndex];
+        if (file) {
+          event.preventDefault();
+          selectMention(file);
+          return;
+        }
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setMentionDismissed(true);
         return;
       }
     }
@@ -1090,6 +1191,13 @@ function AgentComposer({
               commands={filteredCommands}
               activeIndex={commandIndex}
               onSelect={selectCommand}
+            />
+          ) : null}
+          {mentionMenuOpen ? (
+            <FileMentionMenu
+              files={mentionFiles}
+              activeIndex={mentionIndex}
+              onSelect={selectMention}
             />
           ) : null}
           {attachments.length > 0 ? (
@@ -1134,6 +1242,7 @@ function AgentComposer({
               onChange={(event) => {
                 setDraft(event.target.value);
                 setCommandDismissed(false);
+                setMentionDismissed(false);
               }}
               onKeyDown={onKeyDown}
               onPaste={(event) => {
@@ -1492,6 +1601,8 @@ export function AgentView(props: AgentViewProps) {
           onAddFiles={(files) => void addFiles(files)}
           onRemoveAttachment={(id) => setAttachments((current) => current.filter((attachment) => attachment.id !== id))}
           onDismissAttachmentError={() => setAttachmentError(undefined)}
+          fileMentions={props.fileMentions}
+          onSearchFiles={props.onSearchFiles}
           pendingPermission={pendingPermission}
           onCancel={props.onCancel}
           onResolvePermission={props.onResolvePermission}

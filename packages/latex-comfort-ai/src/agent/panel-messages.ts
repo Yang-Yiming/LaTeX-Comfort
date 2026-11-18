@@ -163,6 +163,16 @@ export function parseAgentWebviewMessage(
         : null;
     case "agentOpenSettings":
       return { type: "agentOpenSettings" };
+    case "agentSearchFiles":
+      return nonEmpty(value.requestId) &&
+        typeof value.query === "string" &&
+        value.query.length <= 200
+        ? {
+            type: "agentSearchFiles",
+            requestId: value.requestId,
+            query: value.query,
+          }
+        : null;
     default:
       return null;
   }
