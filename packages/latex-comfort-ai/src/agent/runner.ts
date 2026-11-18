@@ -13,6 +13,12 @@ function appendStderr(current: string, chunk: Buffer | string): string {
   return next.length <= STDERR_LIMIT ? next : next.slice(next.length - STDERR_LIMIT);
 }
 
+function abortError(): Error {
+  const error = new Error("The agent run was cancelled.");
+  error.name = "AbortError";
+  return error;
+}
+
 function isAbortError(error: unknown): boolean {
   return error instanceof Error && error.name === "AbortError";
 }
@@ -58,11 +64,7 @@ function failureMessage(request: AgentRunRequest, error: unknown, stderr: string
 }
 
 export async function runAcpAgent(request: AgentRunRequest): Promise<void> {
-  if (request.signal?.aborted) {
-    const error = new Error("The agent run was cancelled.");
-    error.name = "AbortError";
-    throw error;
-  }
+  if (request.signal?.aborted) throw abortError();
 
   const child = spawn(request.definition.command, request.definition.args, {
     cwd: request.cwd,
@@ -101,7 +103,7 @@ export async function runAcpAgent(request: AgentRunRequest): Promise<void> {
       ...(request.signal ? { signal: request.signal } : {}),
     });
   } catch (error) {
-    if (isAbortError(error)) throw error;
+    if (request.signal?.aborted || isAbortError(error)) throw abortError();
     throw failureMessage(request, error, stderr);
   } finally {
     request.signal?.removeEventListener("abort", cancel);

@@ -21,6 +21,9 @@ const app = agent({ name: "latex-comfort-test-agent" })
         content: { type: "text", text: "Hello from the fake agent." },
       },
     });
+    if (process.env.FAKE_ACP_HANG === "1") {
+      await new Promise(() => undefined);
+    }
     return { stopReason: "end_turn" };
   })
   .onRequest(methods.agent.session.close, () => ({}));
