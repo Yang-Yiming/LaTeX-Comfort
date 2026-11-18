@@ -20,6 +20,7 @@ resume or load, and ACP-only sessions appear in history as remote threads.
 A turn can open all changed file diffs or restore its files. Files edited after
 the agent turn are skipped instead of overwritten.
 
-Clicking one changed file opens it with inline review decorations and per-hunk
-**Approve** / **Reject** actions. If the file changed after the turn, the
+A completed turn with file changes opens inline review automatically, with
+per-hunk **Approve** / **Reject** actions. Review advances through every changed
+file in order; closing it stops the queue. If a file changed after the turn, the
 extension falls back to a side-by-side diff so review remains safe.

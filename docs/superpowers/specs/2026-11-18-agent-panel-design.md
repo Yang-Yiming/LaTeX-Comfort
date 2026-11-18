@@ -174,7 +174,8 @@ Included:
 - ACP session listing merged into the local thread history;
 - per-turn workspace checkpoints, native VS Code file diffs, multi-diff opening,
   fail-closed turn restore, and inline per-hunk approve/reject review in the
-  real document;
+  real document; a completed turn automatically advances through every changed
+  file until reviewed or the queue is closed;
 - Agent panel with empty state and conversation timeline;
 - streaming text and thinking;
 - tool cards;

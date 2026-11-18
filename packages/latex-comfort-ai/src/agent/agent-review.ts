@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import * as vscode from "vscode";
+import type { AgentUiTurnSummary } from "@latex-comfort/shared";
 import type { AgentTurnCheckpointService } from "./history-types";
 import { lineHunks, type LineHunk } from "./line-diff";
 
@@ -114,6 +115,10 @@ export class AgentTurnReview implements vscode.Disposable {
   private readonly disposables: vscode.Disposable[];
   private readonly approvedByFile = new Map<string, Set<string>>();
   private active: ActiveReview | undefined;
+  private queue: Array<{ turnId: string; path: string }> = [];
+  private queueTotal = 0;
+  private queueIndex = 0;
+  private status: vscode.Disposable | undefined;
 
   constructor(private readonly checkpoints: AgentTurnCheckpointService) {
     this.disposables = [
@@ -139,12 +144,61 @@ export class AgentTurnReview implements vscode.Disposable {
   }
 
   async open(turnId: string, filePath: string): Promise<void> {
+    this.queue = [];
+    this.queueTotal = 0;
+    this.queueIndex = 0;
+    this.clearActive();
+    await this.openFile(turnId, filePath);
+  }
+
+  openTurn(turn: AgentUiTurnSummary): void {
+    this.clearActive();
+    this.queue = turn.changes.map((change) => ({
+      turnId: turn.id,
+      path: change.path,
+    }));
+    this.queueTotal = this.queue.length;
+    this.queueIndex = 0;
+    if (this.queue.length === 0) return;
+    void this.openNext();
+  }
+
+  dispose(): void {
+    this.close();
+    for (const disposable of this.disposables) disposable.dispose();
+  }
+
+  private async openNext(): Promise<void> {
+    const next = this.queue.shift();
+    if (!next) {
+      this.status?.dispose();
+      this.status = undefined;
+      const total = this.queueTotal;
+      this.queueTotal = 0;
+      this.queueIndex = 0;
+      if (total > 0) {
+        void vscode.window.showInformationMessage(
+          `Agent review complete: ${total} changed file${total === 1 ? "" : "s"}.`,
+        );
+      }
+      return;
+    }
+    this.queueIndex += 1;
+    this.status?.dispose();
+    this.status = vscode.window.setStatusBarMessage(
+      `$(diff) Reviewing ${this.queueIndex}/${this.queueTotal}: ${next.path}`,
+    );
+    const opened = await this.openFile(next.turnId, next.path);
+    if (!opened) void this.openNext();
+  }
+
+  private async openFile(turnId: string, filePath: string): Promise<boolean> {
     const versions = await this.checkpoints.versions(turnId, filePath);
     if (!versions) {
       void vscode.window.showWarningMessage(
         "The checkpoint for this file is no longer available.",
       );
-      return;
+      return false;
     }
     const uri = vscode.Uri.file(versions.absolutePath);
     let document: vscode.TextDocument | undefined;
@@ -158,20 +212,20 @@ export class AgentTurnReview implements vscode.Disposable {
       void vscode.window.showInformationMessage(
         "This file was deleted by the agent turn, so it was opened as a side-by-side diff.",
       );
-      return;
+      return false;
     }
     if (document.getText() !== versions.afterText) {
       await this.checkpoints.openDiff(turnId, filePath);
       void vscode.window.showInformationMessage(
         "This file changed after the agent turn, so it was opened as a side-by-side diff instead.",
       );
-      return;
+      return false;
     }
     await vscode.window.showTextDocument(document, {
       preview: false,
       preserveFocus: false,
     });
-    this.close();
+    this.clearActive();
     const key = `${turnId}\0${filePath}`;
     this.active = {
       turnId,
@@ -182,11 +236,7 @@ export class AgentTurnReview implements vscode.Disposable {
       pending: [],
     };
     this.render();
-  }
-
-  dispose(): void {
-    this.close();
-    for (const disposable of this.disposables) disposable.dispose();
+    return true;
   }
 
   private accept(id: number): void {
@@ -244,6 +294,15 @@ export class AgentTurnReview implements vscode.Disposable {
   }
 
   private close(): void {
+    this.queue = [];
+    this.queueTotal = 0;
+    this.queueIndex = 0;
+    this.status?.dispose();
+    this.status = undefined;
+    this.clearActive();
+  }
+
+  private clearActive(): void {
     const active = this.active;
     this.active = undefined;
     if (active) {
@@ -270,6 +329,12 @@ export class AgentTurnReview implements vscode.Disposable {
       .map((hunk) => ({ hunk, signature: signature(hunk) }))
       .filter((item) => !active.approved.has(item.signature));
     active.pending = pending;
+    if (pending.length === 0) {
+      this.clearActive();
+      if (this.queue.length > 0) void this.openNext();
+      else if (this.queueTotal > 0) void this.openNext();
+      return;
+    }
 
     const added: vscode.DecorationOptions[] = [];
     const deleted: vscode.DecorationOptions[] = [];

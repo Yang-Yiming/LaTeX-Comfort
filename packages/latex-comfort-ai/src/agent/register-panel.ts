@@ -264,6 +264,7 @@ export function registerAgentPanel(
     },
     threadStore,
     checkpoints,
+    onTurnChanges: (turn) => turnReview.openTurn(turn),
   });
 
   const open = (): void => {

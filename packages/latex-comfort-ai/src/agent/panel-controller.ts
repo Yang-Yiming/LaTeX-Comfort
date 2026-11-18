@@ -94,6 +94,7 @@ export interface AgentPanelControllerOptions {
   ): Promise<void> | void;
   threadStore?: AgentThreadRepository;
   checkpoints?: AgentTurnCheckpointService;
+  onTurnChanges?(turn: AgentUiTurnSummary): void;
   newThreadId?: () => string;
 }
 
@@ -544,6 +545,7 @@ export class AgentPanelController {
     this.turns = [turn, ...this.turns.filter((item) => item.id !== turn.id)];
     this.emit();
     await this.persistThread();
+    if (changes.length > 0) this.options.onTurnChanges?.(turn);
   }
 
   private async persistThread(): Promise<void> {
