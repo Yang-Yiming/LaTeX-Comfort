@@ -12,6 +12,10 @@ type AgentDecision =
   | { type: "completed" }
   | { type: "cancelled" };
 
+interface UpdateWaiter {
+  accept(update: acp.SessionUpdate): void;
+}
+
 export interface InteractiveAcpSessionOptions {
   target: acp.Stream | acp.AgentApp;
   agentId: "opencode" | "codex";
@@ -24,12 +28,21 @@ export interface InteractiveAcpSessionOptions {
   }): Promise<AgentDecision>;
   initialConfig?: Record<string, string>;
   preferredModel?: string;
+  resumeSessionId?: string;
 }
 
 export interface InteractiveSessionStart {
   sessionId: string;
   configOptions: AgentConfigOption[];
   authMethods: AgentAuthMethod[];
+  resumed: boolean;
+  capabilities: {
+    list: boolean;
+    load: boolean;
+    resume: boolean;
+    delete: boolean;
+    close: boolean;
+  };
 }
 
 function cancellableAbort(): Error {
@@ -70,22 +83,34 @@ function authMethodView(method: acp.AuthMethod): AgentAuthMethod {
  */
 export class InteractiveAcpSession {
   private connection: acp.ClientConnection | undefined;
-  private activeSession: acp.ActiveSession | undefined;
+  private sessionId: string | undefined;
   private authMethods: AgentAuthMethod[] = [];
   private configOptions: AgentConfigOption[] = [];
   private disposed = false;
   private promptRunning = false;
   private cancelRequested = false;
+  private suppressReplayUpdates = false;
+  private readonly updateQueue: acp.SessionUpdate[] = [];
+  private readonly updateWaiters: UpdateWaiter[] = [];
+  private capabilities: InteractiveSessionStart["capabilities"] = {
+    list: false,
+    load: false,
+    resume: false,
+    delete: false,
+    close: false,
+  };
 
   constructor(private readonly options: InteractiveAcpSessionOptions) {}
 
   async start(): Promise<InteractiveSessionStart> {
     if (this.disposed) throw new Error("The agent session has been disposed.");
-    if (this.activeSession) {
+    if (this.sessionId) {
       return {
-        sessionId: this.activeSession.sessionId,
+        sessionId: this.sessionId,
         configOptions: this.configOptions,
         authMethods: this.authMethods,
+        resumed: true,
+        capabilities: this.capabilities,
       };
     }
 
@@ -128,7 +153,12 @@ export class InteractiveAcpSession {
               }
             : { outcome: { outcome: "cancelled" as const } };
         },
-      );
+      )
+      .onNotification(acp.methods.client.session.update, ({ params }) => {
+        if (params.sessionId !== this.sessionId) return;
+        if (this.suppressReplayUpdates) return;
+        this.pushUpdate(params.update);
+      });
 
     const connection =
       "writable" in this.options.target
@@ -153,17 +183,41 @@ export class InteractiveAcpSession {
       );
     }
     this.authMethods = (initialized.authMethods ?? []).map(authMethodView);
+    const sessionCapabilities = initialized.agentCapabilities?.sessionCapabilities;
+    this.capabilities = {
+      list: Boolean(sessionCapabilities?.list),
+      load: Boolean(initialized.agentCapabilities?.loadSession),
+      resume: Boolean(sessionCapabilities?.resume),
+      delete: Boolean(sessionCapabilities?.delete),
+      close: Boolean(sessionCapabilities?.close),
+    };
 
-    let session: acp.ActiveSession;
-    try {
-      session = await ctx.buildSession(this.options.cwd).start();
-    } catch (error) {
-      if (!isAuthenticationRequired(error)) throw error;
-      await this.authenticate();
-      session = await ctx.buildSession(this.options.cwd).start();
+    let resumed = false;
+    const requestedSessionId = this.options.resumeSessionId;
+    if (requestedSessionId) {
+      this.sessionId = requestedSessionId;
+      try {
+        resumed = await this.resumeOrLoad(requestedSessionId);
+      } catch (error) {
+        if (isAuthenticationRequired(error)) {
+          await this.authenticate();
+          try {
+            resumed = await this.resumeOrLoad(requestedSessionId);
+          } catch {
+            resumed = false;
+          }
+        } else {
+          resumed = false;
+        }
+      }
+      if (!resumed) this.sessionId = undefined;
     }
-    this.activeSession = session;
-    this.configOptions = mapConfigOptions(session.newSessionResponse.configOptions);
+
+    if (!resumed) {
+      const response = await this.createSession();
+      this.sessionId = response.sessionId;
+      this.configOptions = mapConfigOptions(response.configOptions);
+    }
 
     for (const [configId, value] of Object.entries(
       this.options.initialConfig ?? {},
@@ -185,19 +239,22 @@ export class InteractiveAcpSession {
       await this.setConfigOption(model.id, this.options.preferredModel);
     }
 
+    if (!this.sessionId) {
+      throw new Error("The agent did not return a session id.");
+    }
     return {
-      sessionId: session.sessionId,
+      sessionId: this.sessionId,
       configOptions: this.configOptions,
       authMethods: this.authMethods,
+      resumed,
+      capabilities: this.capabilities,
     };
   }
 
   async prompt(prompt: string): Promise<void> {
     if (this.disposed) throw new Error("The agent session has been disposed.");
     if (this.promptRunning) throw new Error("The agent is already running.");
-    const session = this.activeSession;
-    const connection = this.connection;
-    if (!session || !connection) {
+    if (!this.sessionId || !this.connection) {
       throw new Error("The agent session has not started.");
     }
 
@@ -205,11 +262,11 @@ export class InteractiveAcpSession {
     this.cancelRequested = false;
     try {
       try {
-        await this.runPrompt(session, prompt);
+        await this.runPrompt(prompt);
       } catch (error) {
         if (!isAuthenticationRequired(error)) throw error;
         await this.authenticate();
-        await this.runPrompt(session, prompt);
+        await this.runPrompt(prompt);
       }
       if (this.cancelRequested) throw cancellableAbort();
     } finally {
@@ -218,14 +275,12 @@ export class InteractiveAcpSession {
   }
 
   async cancel(): Promise<void> {
-    const session = this.activeSession;
+    const sessionId = this.sessionId;
     const connection = this.connection;
-    if (!session || !connection) return;
+    if (!sessionId || !connection) return;
     this.cancelRequested = true;
     await connection.agent
-      .notify(acp.methods.agent.session.cancel, {
-        sessionId: session.sessionId,
-      })
+      .notify(acp.methods.agent.session.cancel, { sessionId })
       .catch(() => undefined);
   }
 
@@ -233,18 +288,14 @@ export class InteractiveAcpSession {
     configId: string,
     value: string,
   ): Promise<AgentConfigOption[]> {
-    const session = this.activeSession;
+    const sessionId = this.sessionId;
     const connection = this.connection;
-    if (!session || !connection) {
+    if (!sessionId || !connection) {
       throw new Error("The agent session has not started.");
     }
     const response = await connection.agent.request(
       acp.methods.agent.session.setConfigOption,
-      {
-        sessionId: session.sessionId,
-        configId,
-        value,
-      },
+      { sessionId, configId, value },
     );
     const mapped = mapConfigOptions(response.configOptions);
     if (mapped.length > 0) {
@@ -265,36 +316,154 @@ export class InteractiveAcpSession {
   async dispose(): Promise<void> {
     if (this.disposed) return;
     this.disposed = true;
-    const session = this.activeSession;
+    const sessionId = this.sessionId;
     const connection = this.connection;
-    this.activeSession = undefined;
+    this.sessionId = undefined;
     this.connection = undefined;
 
-    session?.dispose();
-    if (session && connection) {
+    if (sessionId && connection) {
       await connection.agent
-        .request(acp.methods.agent.session.close, {
-          sessionId: session.sessionId,
-        })
+        .request(acp.methods.agent.session.close, { sessionId })
         .catch(() => undefined);
     }
     connection?.close();
   }
 
-  private async runPrompt(
-    session: acp.ActiveSession,
-    prompt: string,
-  ): Promise<void> {
-    const response = session.prompt(prompt);
-    for (;;) {
-      const message = await session.nextUpdate();
-      if (message.kind === "stop") break;
-      for (const event of mapSessionUpdate(message.update)) {
-        if (event.type === "config") this.configOptions = event.options;
-        this.options.onEvent(event);
+  private async createSession(): Promise<acp.NewSessionResponse> {
+    const connection = this.connection;
+    if (!connection) throw new Error("The agent connection is unavailable.");
+    try {
+      return await connection.agent.request(acp.methods.agent.session.new, {
+        cwd: this.options.cwd,
+        mcpServers: [],
+      });
+    } catch (error) {
+      if (!isAuthenticationRequired(error)) throw error;
+      await this.authenticate();
+      return connection.agent.request(acp.methods.agent.session.new, {
+        cwd: this.options.cwd,
+        mcpServers: [],
+      });
+    }
+  }
+
+  private async resumeOrLoad(sessionId: string): Promise<boolean> {
+    const connection = this.connection;
+    if (!connection) return false;
+    if (this.capabilities.resume) {
+      const response = await connection.agent.request(
+        acp.methods.agent.session.resume,
+        {
+          sessionId,
+          cwd: this.options.cwd,
+          mcpServers: [],
+        },
+      );
+      this.configOptions = mapConfigOptions(response.configOptions);
+      return true;
+    }
+    if (this.capabilities.load) {
+      this.suppressReplayUpdates = true;
+      try {
+        const response = await connection.agent.request(
+          acp.methods.agent.session.load,
+          {
+            sessionId,
+            cwd: this.options.cwd,
+            mcpServers: [],
+          },
+        );
+        this.configOptions = mapConfigOptions(response.configOptions);
+        return true;
+      } finally {
+        this.suppressReplayUpdates = false;
       }
     }
+    return false;
+  }
+
+  private async runPrompt(prompt: string): Promise<void> {
+    const connection = this.connection;
+    const sessionId = this.sessionId;
+    if (!connection || !sessionId) {
+      throw new Error("The agent session has not started.");
+    }
+    const response = connection.agent.request(
+      acp.methods.agent.session.prompt,
+      {
+        sessionId,
+        prompt: [{ type: "text", text: prompt }],
+      },
+    );
+
+    for (;;) {
+      const next = await this.nextUpdateOrStop(response);
+      if (next.kind === "stop") {
+        while (this.updateQueue.length > 0) {
+          const update = this.updateQueue.shift();
+          if (update) this.applyUpdate(update);
+        }
+        break;
+      }
+      this.applyUpdate(next.update);
+    }
     await response;
+  }
+
+  private applyUpdate(update: acp.SessionUpdate): void {
+    for (const event of mapSessionUpdate(update)) {
+      if (event.type === "config") this.configOptions = event.options;
+      this.options.onEvent(event);
+    }
+  }
+
+  private pushUpdate(update: acp.SessionUpdate): void {
+    const waiter = this.updateWaiters.shift();
+    if (waiter) {
+      waiter.accept(update);
+      return;
+    }
+    this.updateQueue.push(update);
+  }
+
+  private nextUpdateOrStop(
+    response: Promise<acp.PromptResponse>,
+  ): Promise<
+    | { kind: "update"; update: acp.SessionUpdate }
+    | { kind: "stop" }
+  > {
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      const settle = (
+        value:
+          | { kind: "update"; update: acp.SessionUpdate }
+          | { kind: "stop" },
+      ) => {
+        if (settled) return;
+        settled = true;
+        resolve(value);
+      };
+      const waiter: UpdateWaiter = {
+        accept: (update) => settle({ kind: "update", update }),
+      };
+      this.updateWaiters.push(waiter);
+      void response.then(
+        () => {
+          if (!settled) {
+            const index = this.updateWaiters.indexOf(waiter);
+            if (index >= 0) this.updateWaiters.splice(index, 1);
+          }
+          settle({ kind: "stop" });
+        },
+        (error: unknown) => {
+          if (!settled) {
+            const index = this.updateWaiters.indexOf(waiter);
+            if (index >= 0) this.updateWaiters.splice(index, 1);
+          }
+          reject(error);
+        },
+      );
+    });
   }
 
   private async authenticate(): Promise<void> {

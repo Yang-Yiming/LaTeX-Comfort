@@ -1,9 +1,13 @@
+import { randomUUID } from "node:crypto";
 import type {
   AgentUiAuthMethod,
+  AgentUiChangeFile,
   AgentUiConfigOption,
   AgentUiContext,
   AgentUiEntry,
   AgentUiSnapshot,
+  AgentUiThreadSummary,
+  AgentUiTurnSummary,
 } from "@latex-comfort/shared";
 import { getAgentDefinition } from "./definitions";
 import {
@@ -17,6 +21,12 @@ import {
   type AgentPanelState,
 } from "./panel-state";
 import type {
+  AgentThreadRepository,
+  AgentTurnCheckpointService,
+  AgentWorkspaceSnapshot,
+  StoredAgentThread,
+} from "./history-types";
+import type {
   AgentAuthDecision,
   AgentAuthRequest,
   AgentConfigOption,
@@ -29,8 +39,17 @@ import type {
 
 export interface AgentRuntime {
   start(): Promise<{
+    sessionId: string;
     configOptions: AgentConfigOption[];
     authMethods: AgentUiAuthMethod[];
+    resumed: boolean;
+    capabilities: {
+      list: boolean;
+      load: boolean;
+      resume: boolean;
+      delete: boolean;
+      close: boolean;
+    };
   }>;
   prompt(prompt: string): Promise<void>;
   cancel(): Promise<void>;
@@ -45,6 +64,7 @@ export interface AgentRuntimeDependencies {
   definition: AgentDefinition;
   cwd: string;
   preferredModel?: string;
+  resumeSessionId?: string;
   onEvent(event: AgentEvent): void;
   requestPermission(request: AgentPermissionRequest): Promise<string | undefined>;
   authenticate(request: AgentAuthRequest): Promise<AgentAuthDecision>;
@@ -68,6 +88,9 @@ export interface AgentPanelControllerOptions {
     agentId: AgentId,
     values: string[] | null,
   ): Promise<void> | void;
+  threadStore?: AgentThreadRepository;
+  checkpoints?: AgentTurnCheckpointService;
+  newThreadId?: () => string;
 }
 
 function isAbortError(error: unknown): boolean {
@@ -110,6 +133,20 @@ export class AgentPanelController {
   private starting: Promise<AgentRuntime> | undefined;
   private readonly selectedModels = new Map<AgentId, string>();
   private readonly visibleModels = new Map<AgentId, Set<string>>();
+  private threadId: string;
+  private threadCreatedAt: number;
+  private threadSessionId: string | undefined;
+  private threads: AgentUiThreadSummary[] = [];
+  private turns: AgentUiTurnSummary[] = [];
+  private threadsLoaded = false;
+  private pendingTurn:
+    | {
+        id: string;
+        prompt: string;
+        createdAt: number;
+        before?: AgentWorkspaceSnapshot;
+      }
+    | undefined;
   private permissionSequence = 0;
   private pendingPermission:
     | {
@@ -125,6 +162,8 @@ export class AgentPanelController {
 
   constructor(private readonly options: AgentPanelControllerOptions) {
     this.agentId = options.initialAgentId ?? "opencode";
+    this.threadId = options.newThreadId?.() ?? randomUUID();
+    this.threadCreatedAt = options.now?.() ?? Date.now();
     for (const [agentId, model] of Object.entries(options.initialModels ?? {})) {
       if (model) this.selectedModels.set(agentId as AgentId, model);
     }
@@ -145,7 +184,12 @@ export class AgentPanelController {
       now: _now,
       ...snapshot
     } = this.state;
-    return snapshot;
+    return {
+      ...snapshot,
+      threadId: this.threadId,
+      threads: this.threads,
+      turns: this.turns,
+    };
   }
 
   setContext(context: AgentUiContext | undefined): void {
@@ -163,13 +207,13 @@ export class AgentPanelController {
       throw new Error("Start a new thread before switching agents.");
     }
     await this.stopRuntime();
-    this.agentId = agentId;
-    this.state = this.freshState(agentId);
+    this.resetThread(agentId);
     this.emit();
     void this.prepare();
   }
 
   async prepare(): Promise<void> {
+    await this.loadThreads();
     if (this.runtime || this.starting) return;
     try {
       await this.ensureRuntime();
@@ -190,6 +234,13 @@ export class AgentPanelController {
     }
 
     const context = this.state.context;
+    if (this.state.title === "New thread") {
+      this.state = {
+        ...this.state,
+        title: prompt.replace(/\s+/g, " ").slice(0, 72),
+        revision: this.state.revision + 1,
+      };
+    }
     this.state = appendUserMessage(
       this.state,
       prompt,
@@ -197,6 +248,23 @@ export class AgentPanelController {
     );
     this.state = setPhase(this.state, "running");
     this.emit();
+    void this.persistThread();
+
+    const turnId = randomUUID();
+    const turnCreatedAt = this.options.now?.() ?? Date.now();
+    const root = this.options.workspaceDirectory();
+    let before: AgentWorkspaceSnapshot | undefined;
+    if (root && this.options.checkpoints) {
+      before = await this.options.checkpoints
+        .capture(root)
+        .catch(() => undefined);
+    }
+    this.pendingTurn = {
+      id: turnId,
+      prompt,
+      createdAt: turnCreatedAt,
+      ...(before ? { before } : {}),
+    };
 
     try {
       const runtime = await this.ensureRuntime();
@@ -205,8 +273,12 @@ export class AgentPanelController {
       await runtime.prompt(`${contextPrompt(context)}${prompt}`);
       this.state = finishTurn(this.state);
       this.emit();
+      await this.recordPendingTurn();
     } catch (error) {
-      if (this.state.phase === "failed") return;
+      if (this.state.phase === "failed") {
+        await this.recordPendingTurn();
+        return;
+      }
       if (isAbortError(error)) {
         this.state = reduceAgentEvent(this.state, {
           type: "notice",
@@ -214,9 +286,11 @@ export class AgentPanelController {
         });
         this.state = finishTurn(this.state);
         this.emit();
+        await this.recordPendingTurn();
         return;
       }
       this.fail(error);
+      await this.recordPendingTurn();
     }
   }
 
@@ -335,15 +409,42 @@ export class AgentPanelController {
 
   async newThread(): Promise<void> {
     await this.stopRuntime();
-    const model = this.selectedModels.get(this.agentId);
-    const previousConfig = this.state.configOptions;
+    this.resetThread(this.agentId);
+    this.emit();
+    void this.prepare();
+  }
+
+  async openThread(threadId: string): Promise<void> {
+    if (threadId === this.threadId) return;
+    const thread = await this.options.threadStore?.load(threadId);
+    if (!thread) return;
+    await this.stopRuntime();
+    this.agentId = thread.agentId;
+    this.threadId = thread.id;
+    this.threadCreatedAt = thread.createdAt;
+    this.threadSessionId = thread.sessionId;
+    this.turns = thread.turns;
     this.state = {
-      ...this.freshState(this.agentId),
-      configOptions: previousConfig,
-      ...(model ? { currentModel: model } : {}),
+      ...this.freshState(thread.agentId),
+      title: thread.title,
+      entries: thread.entries,
+      ...(thread.model ? { currentModel: thread.model } : {}),
     };
     this.emit();
     void this.prepare();
+  }
+
+  async deleteThread(threadId: string): Promise<void> {
+    await this.options.threadStore?.delete(threadId);
+    if (threadId === this.threadId) {
+      await this.newThread();
+    }
+    await this.loadThreads(true);
+    this.emit();
+  }
+
+  async openDiff(turnId: string, filePath: string): Promise<void> {
+    await this.options.checkpoints?.openDiff(turnId, filePath);
   }
 
   async releaseIdleSession(): Promise<void> {
@@ -359,6 +460,79 @@ export class AgentPanelController {
 
   async dispose(): Promise<void> {
     await this.stopRuntime();
+  }
+
+  private async recordPendingTurn(): Promise<void> {
+    const pending = this.pendingTurn;
+    this.pendingTurn = undefined;
+    if (!pending) {
+      await this.persistThread();
+      return;
+    }
+    let changes: AgentUiChangeFile[] = [];
+    if (pending.before && this.options.checkpoints) {
+      changes = await this.options.checkpoints
+        .complete(pending.id, pending.before)
+        .catch(() => []);
+    }
+    const turn: AgentUiTurnSummary = {
+      id: pending.id,
+      threadId: this.threadId,
+      threadTitle: this.state.title,
+      createdAt: pending.createdAt,
+      prompt: pending.prompt,
+      changes,
+    };
+    this.turns = [turn, ...this.turns.filter((item) => item.id !== turn.id)];
+    this.emit();
+    await this.persistThread();
+  }
+
+  private async persistThread(): Promise<void> {
+    const store = this.options.threadStore;
+    const workspacePath = this.options.workspaceDirectory();
+    if (!store || !workspacePath || this.state.entries.length === 0) return;
+    const now = this.options.now?.() ?? Date.now();
+    const thread: StoredAgentThread = {
+      id: this.threadId,
+      agentId: this.agentId,
+      workspacePath,
+      ...(this.threadSessionId ? { sessionId: this.threadSessionId } : {}),
+      title: this.state.title,
+      createdAt: this.threadCreatedAt,
+      updatedAt: now,
+      ...(this.state.currentModel ? { model: this.state.currentModel } : {}),
+      entries: this.state.entries,
+      turns: this.turns,
+    };
+    await store.save(thread);
+    await this.loadThreads(true);
+    this.emit();
+  }
+
+  private async loadThreads(force = false): Promise<void> {
+    if ((this.threadsLoaded && !force) || !this.options.threadStore) return;
+    const cwd =
+      this.options.workspaceDirectory() ?? this.options.activeFileDirectory();
+    if (!cwd) return;
+    this.threads = await this.options.threadStore.list(cwd);
+    this.threadsLoaded = true;
+  }
+
+  private resetThread(agentId: AgentId): void {
+    const now = this.options.now?.() ?? Date.now();
+    this.threadId = this.options.newThreadId?.() ?? randomUUID();
+    this.threadCreatedAt = now;
+    this.threadSessionId = undefined;
+    this.turns = [];
+    this.agentId = agentId;
+    const model = this.selectedModels.get(agentId);
+    const previousConfig = this.state.configOptions;
+    this.state = {
+      ...this.freshState(agentId),
+      configOptions: previousConfig,
+      ...(model ? { currentModel: model } : {}),
+    };
   }
 
   private freshState(agentId: AgentId): AgentPanelState {
@@ -410,6 +584,9 @@ export class AgentPanelController {
         definition,
         cwd,
         ...(preferredModel ? { preferredModel } : {}),
+        ...(this.threadSessionId
+          ? { resumeSessionId: this.threadSessionId }
+          : {}),
         onEvent: (event) => {
           this.state = reduceAgentEvent(this.state, event);
           this.emit();
@@ -420,6 +597,7 @@ export class AgentPanelController {
       .then(async (runtime) => {
         const started = await runtime.start();
         this.runtime = runtime;
+        this.threadSessionId = started.sessionId;
         if (started.configOptions.length > 0) {
           this.state = reduceAgentEvent(this.state, {
             type: "config",
@@ -454,6 +632,7 @@ export class AgentPanelController {
           this.selectedModels.set(this.agentId, current.currentValue);
         }
         this.emit();
+        if (this.state.entries.length > 0) void this.persistThread();
         return runtime;
       })
       .finally(() => {

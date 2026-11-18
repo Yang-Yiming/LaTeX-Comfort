@@ -23,11 +23,14 @@ export interface AgentViewProps {
   onSend(text: string): void;
   onCancel(): void;
   onNewThread(): void;
+  onOpenThread(threadId: string): void;
+  onDeleteThread(threadId: string): void;
   onSelectAgent(agentId: AgentUiAgentId): void;
   onSelectConfig(configId: string, value: string): void;
   onSetVisibleModels(values: string[] | null): void;
   onResolvePermission(permissionId: string, optionId?: string): void;
   onAuthenticate(methodId?: string): void;
+  onOpenDiff(turnId: string, path: string): void;
   onOpenLocation(path: string, line?: number): void;
   onOpenSettings(): void;
 }
@@ -90,7 +93,10 @@ function Icon({
     | "tool"
     | "branch"
     | "search"
-    | "close";
+    | "close"
+    | "history"
+    | "trash"
+    | "diff";
   size?: number;
 }) {
   const common = {
@@ -137,6 +143,12 @@ function Icon({
       return <svg {...common}><circle cx="7" cy="7" r="4" /><path d="m10 10 3 3" /></svg>;
     case "close":
       return <svg {...common}><path d="m4.5 4.5 7 7M11.5 4.5l-7 7" /></svg>;
+    case "history":
+      return <svg {...common}><path d="M3.2 8a4.8 4.8 0 1 0 1.4-3.4M3.2 3.5v2.7h2.7M8 5v3.4l2.2 1.3" /></svg>;
+    case "trash":
+      return <svg {...common}><path d="M3.5 4.5h9M6 4.5V3h4v1.5M4.8 4.5l.6 8h5.2l.6-8M6.7 6.5v4M9.3 6.5v4" /></svg>;
+    case "diff":
+      return <svg {...common}><path d="M3 4.5h4M5 2.5v4M9 9.5h4M3.5 11.5h4M9 3.5h4" /></svg>;
     default:
       return <svg {...common}><circle cx="8" cy="8" r="5.2" /><path d="M8 5.5v3.2" /></svg>;
   }
@@ -706,9 +718,203 @@ function AuthBanner({
   );
 }
 
+function historyTime(timestamp: number): string {
+  return new Date(timestamp).toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function AgentHistoryDialog({
+  snapshot,
+  onClose,
+  onOpenThread,
+  onDeleteThread,
+  onOpenDiff,
+}: {
+  snapshot: AgentUiSnapshot;
+  onClose(): void;
+  onOpenThread(threadId: string): void;
+  onDeleteThread(threadId: string): void;
+  onOpenDiff(turnId: string, path: string): void;
+}) {
+  const [tab, setTab] = useState<"threads" | "changes">("threads");
+  const [query, setQuery] = useState("");
+  const needle = query.trim().toLowerCase();
+  const threads = snapshot.threads.filter(
+    (thread) =>
+      !needle ||
+      thread.title.toLowerCase().includes(needle) ||
+      thread.agentId.toLowerCase().includes(needle),
+  );
+  const turns = snapshot.turns.filter((turn) =>
+    !needle
+      ? true
+      : turn.prompt.toLowerCase().includes(needle) ||
+        turn.threadTitle.toLowerCase().includes(needle) ||
+        turn.changes.some((change) => change.path.toLowerCase().includes(needle)),
+  );
+
+  return (
+    <div className="agent-model-overlay" role="presentation" onMouseDown={onClose}>
+      <section
+        className="agent-model-dialog agent-history-dialog"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Agent session history"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <header className="agent-model-dialog-header">
+          <div>
+            <strong>Agent history</strong>
+            <span>Resume a conversation or review files changed by a turn.</span>
+          </div>
+          <button
+            type="button"
+            className="agent-icon-button"
+            aria-label="Close history"
+            onClick={onClose}
+          >
+            <Icon name="close" size={14} />
+          </button>
+        </header>
+        <div className="agent-history-tabs">
+          <button
+            type="button"
+            data-active={tab === "threads" || undefined}
+            onClick={() => setTab("threads")}
+          >
+            <Icon name="history" size={13} />
+            Threads
+            <span>{snapshot.threads.length}</span>
+          </button>
+          <button
+            type="button"
+            data-active={tab === "changes" || undefined}
+            onClick={() => setTab("changes")}
+          >
+            <Icon name="diff" size={13} />
+            Changes
+            <span>{snapshot.turns.length}</span>
+          </button>
+        </div>
+        <div className="agent-model-dialog-tools">
+          <label className="agent-model-search is-dialog">
+            <Icon name="search" size={13} />
+            <input
+              value={query}
+              aria-label="Search agent history"
+              placeholder={tab === "threads" ? "Search threads…" : "Search changes…"}
+              onChange={(event) => setQuery(event.target.value)}
+              autoFocus
+            />
+          </label>
+        </div>
+        <div className="agent-history-list">
+          {tab === "threads" ? (
+            threads.length > 0 ? (
+              threads.map((thread) => (
+                <div
+                  className="agent-history-thread"
+                  data-current={thread.id === snapshot.threadId || undefined}
+                  key={thread.id}
+                >
+                  <button
+                    type="button"
+                    className="agent-history-thread-main"
+                    onClick={() => onOpenThread(thread.id)}
+                  >
+                    <span className="agent-history-title">{thread.title}</span>
+                    <span className="agent-history-meta">
+                      <span>{thread.agentId === "opencode" ? "OpenCode" : "Codex"}</span>
+                      <span>{historyTime(thread.updatedAt)}</span>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    className="agent-history-delete"
+                    aria-label={`Delete ${thread.title}`}
+                    title="Delete thread"
+                    onClick={() => onDeleteThread(thread.id)}
+                  >
+                    <Icon name="trash" size={13} />
+                  </button>
+                </div>
+              ))
+            ) : (
+              <div className="agent-history-empty">
+                <Icon name="history" size={20} />
+                <strong>No saved threads yet</strong>
+                <span>Your first completed conversation will appear here.</span>
+              </div>
+            )
+          ) : turns.length > 0 ? (
+            turns.map((turn) => (
+              <article className="agent-history-turn" key={turn.id}>
+                <button
+                  type="button"
+                  className="agent-history-turn-head"
+                  onClick={() => onOpenThread(turn.threadId)}
+                >
+                  <span className="agent-history-title">{turn.prompt}</span>
+                  <span className="agent-history-meta">
+                    <span>{turn.threadTitle}</span>
+                    <span>{historyTime(turn.createdAt)}</span>
+                  </span>
+                </button>
+                {turn.changes.length > 0 ? (
+                  <div className="agent-history-files">
+                    {turn.changes.map((change) => (
+                      <button
+                        type="button"
+                        className="agent-history-file"
+                        key={`${turn.id}:${change.path}`}
+                        onClick={() => onOpenDiff(turn.id, change.path)}
+                      >
+                        <span className={`agent-change-mark is-${change.kind}`}>
+                          {change.kind === "created" ? "+" : change.kind === "deleted" ? "−" : "±"}
+                        </span>
+                        <span className="agent-history-file-path">{change.path}</span>
+                        <span className="agent-history-stats">
+                          <span>+{change.additions}</span>
+                          <span>−{change.deletions}</span>
+                        </span>
+                        <Icon name="diff" size={12} />
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="agent-history-no-files">No text-file changes recorded.</p>
+                )}
+              </article>
+            ))
+          ) : (
+            <div className="agent-history-empty">
+              <Icon name="diff" size={20} />
+              <strong>No changes yet</strong>
+              <span>Completed turns with file edits appear here.</span>
+            </div>
+          )}
+        </div>
+        <footer className="agent-model-dialog-footer">
+          <span>
+            {snapshot.threads.length} saved thread{snapshot.threads.length === 1 ? "" : "s"}
+          </span>
+          <button type="button" className="agent-button quiet" onClick={onClose}>
+            Close
+          </button>
+        </footer>
+      </section>
+    </div>
+  );
+}
+
 export function AgentView(props: AgentViewProps) {
   const { snapshot } = props;
   const [draft, setDraft] = useState("");
+  const [historyOpen, setHistoryOpen] = useState(false);
   const textarea = useRef<HTMLTextAreaElement>(null);
   const list = useRef<HTMLDivElement>(null);
   const busy =
@@ -753,6 +959,15 @@ export function AgentView(props: AgentViewProps) {
           <span className="agent-agent-pill">{snapshot.agentLabel}</span>
         </div>
         <div className="agent-header-actions">
+          <button
+            type="button"
+            className="agent-icon-button"
+            aria-label="Session history"
+            title="Session history"
+            onClick={() => setHistoryOpen(true)}
+          >
+            <Icon name="history" size={15} />
+          </button>
           <button
             type="button"
             className="agent-icon-button"
@@ -870,6 +1085,21 @@ export function AgentView(props: AgentViewProps) {
           </span>
         </div>
       </footer>
+      {historyOpen ? (
+        <AgentHistoryDialog
+          snapshot={snapshot}
+          onClose={() => setHistoryOpen(false)}
+          onOpenThread={(threadId) => {
+            setHistoryOpen(false);
+            props.onOpenThread(threadId);
+          }}
+          onDeleteThread={props.onDeleteThread}
+          onOpenDiff={(turnId, filePath) => {
+            setHistoryOpen(false);
+            props.onOpenDiff(turnId, filePath);
+          }}
+        />
+      ) : null}
     </main>
   );
 }

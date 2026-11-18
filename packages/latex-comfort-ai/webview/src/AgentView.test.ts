@@ -7,6 +7,7 @@ import { AgentView } from "./AgentView";
 function snapshot(overrides: Partial<AgentUiSnapshot> = {}): AgentUiSnapshot {
   return {
     revision: 1,
+    threadId: "thread-1",
     agentId: "opencode",
     agentLabel: "OpenCode",
     phase: "idle",
@@ -26,6 +27,8 @@ function snapshot(overrides: Partial<AgentUiSnapshot> = {}): AgentUiSnapshot {
     ],
     currentModel: "provider/model",
     authMethods: [],
+    threads: [],
+    turns: [],
     ...overrides,
   };
 }
@@ -39,11 +42,14 @@ function render(value: AgentUiSnapshot): string {
       onSend: noop,
       onCancel: noop,
       onNewThread: noop,
+      onOpenThread: noop,
+      onDeleteThread: noop,
       onSelectAgent: noop,
       onSelectConfig: noop,
       onSetVisibleModels: noop,
       onResolvePermission: noop,
       onAuthenticate: noop,
+      onOpenDiff: noop,
       onOpenLocation: noop,
       onOpenSettings: noop,
     }),

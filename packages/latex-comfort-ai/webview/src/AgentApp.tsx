@@ -9,6 +9,7 @@ import "./agent.css";
 
 const INITIAL: AgentUiSnapshot = {
   revision: 0,
+  threadId: "new-thread",
   agentId: "opencode",
   agentLabel: "OpenCode",
   phase: "starting",
@@ -16,6 +17,8 @@ const INITIAL: AgentUiSnapshot = {
   entries: [],
   configOptions: [],
   authMethods: [],
+  threads: [],
+  turns: [],
 };
 
 export function AgentApp() {
@@ -36,6 +39,12 @@ export function AgentApp() {
       onSend={(text) => vscode.postMessage({ type: "agentSend", text })}
       onCancel={() => vscode.postMessage({ type: "agentCancel" })}
       onNewThread={() => vscode.postMessage({ type: "agentNewThread" })}
+      onOpenThread={(threadId) =>
+        vscode.postMessage({ type: "agentOpenThread", threadId })
+      }
+      onDeleteThread={(threadId) =>
+        vscode.postMessage({ type: "agentDeleteThread", threadId })
+      }
       onSelectAgent={(agentId) =>
         vscode.postMessage({ type: "agentSelectAgent", agentId })
       }
@@ -57,6 +66,9 @@ export function AgentApp() {
           type: "agentAuthenticate",
           ...(methodId ? { methodId } : {}),
         })
+      }
+      onOpenDiff={(turnId, path) =>
+        vscode.postMessage({ type: "agentOpenDiff", turnId, path })
       }
       onOpenLocation={(path, line) =>
         vscode.postMessage({

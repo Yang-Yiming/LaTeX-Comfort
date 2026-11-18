@@ -19,6 +19,9 @@ export async function createInteractiveRuntime(
     ...(dependencies.preferredModel
       ? { preferredModel: dependencies.preferredModel }
       : {}),
+    ...(dependencies.resumeSessionId
+      ? { resumeSessionId: dependencies.resumeSessionId }
+      : {}),
   });
 
   return {

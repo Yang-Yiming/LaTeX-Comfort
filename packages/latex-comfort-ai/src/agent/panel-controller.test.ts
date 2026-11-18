@@ -16,8 +16,17 @@ const SETTINGS: AgentSettings = {
 function runtime(overrides: Partial<AgentRuntime> = {}): AgentRuntime {
   return {
     start: vi.fn(async () => ({
+      sessionId: "session-1",
       configOptions: [],
       authMethods: [],
+      resumed: false,
+      capabilities: {
+        list: true,
+        load: true,
+        resume: true,
+        delete: true,
+        close: true,
+      },
     })),
     prompt: vi.fn(async () => undefined),
     cancel: vi.fn(async () => undefined),
@@ -154,6 +163,15 @@ describe("AgentPanelController", () => {
   it("keeps the selected model across a new thread", async () => {
     const first = runtime({
       start: vi.fn(async () => ({
+        sessionId: "session-model",
+        resumed: false,
+        capabilities: {
+          list: true,
+          load: true,
+          resume: true,
+          delete: true,
+          close: true,
+        },
         configOptions: [
           {
             id: "model",

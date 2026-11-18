@@ -7,9 +7,11 @@ import {
   type AgentUiContext,
   type AgentWebviewToHostMessage,
 } from "@latex-comfort/shared";
+import { AgentCheckpointService } from "./checkpoints";
 import { createInteractiveRuntime } from "./interactive-runtime";
 import { AgentPanelController } from "./panel-controller";
 import { AgentPanelSurface } from "./panel-surface";
+import { AgentThreadStore } from "./thread-store";
 import type { AgentId, AgentSettings } from "./types";
 
 const LAST_AGENT_KEY = "latexComfort.agent.lastAgent";
@@ -153,6 +155,8 @@ export function registerAgentPanel(
 ): vscode.Disposable[] {
   const settings = readSettings();
   let visibleModels = readVisibleModels(context);
+  const threadStore = new AgentThreadStore(context.globalStorageUri.fsPath);
+  const checkpoints = new AgentCheckpointService(context.globalStorageUri.fsPath);
   let panel: AgentPanelSurface;
   let controller: AgentPanelController;
 
@@ -166,6 +170,12 @@ export function registerAgentPanel(
         return;
       case "agentNewThread":
         await controller.newThread();
+        return;
+      case "agentOpenThread":
+        await controller.openThread(message.threadId);
+        return;
+      case "agentDeleteThread":
+        await controller.deleteThread(message.threadId);
         return;
       case "agentSelectAgent":
         await controller.selectAgent(message.agentId);
@@ -182,6 +192,9 @@ export function registerAgentPanel(
         return;
       case "agentAuthenticate":
         await controller.authenticate(message.methodId);
+        return;
+      case "agentOpenDiff":
+        await controller.openDiff(message.turnId, message.path);
         return;
       case "agentOpenLocation":
         await openLocation(message.path, message.line);
@@ -226,6 +239,8 @@ export function registerAgentPanel(
       visibleModels = next;
       await context.globalState.update(VISIBLE_MODELS_KEY, next);
     },
+    threadStore,
+    checkpoints,
   });
 
   const open = (): void => {
@@ -244,6 +259,7 @@ export function registerAgentPanel(
     vscode.window.onDidChangeActiveTextEditor(refreshContext),
     vscode.window.onDidChangeTextEditorSelection(refreshContext),
     { dispose: () => void controller.dispose() },
+    checkpoints,
     panel,
   ];
 }

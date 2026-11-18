@@ -31,6 +31,14 @@ export function parseAgentWebviewMessage(
       return { type: "agentCancel" };
     case "agentNewThread":
       return { type: "agentNewThread" };
+    case "agentOpenThread":
+      return nonEmpty(value.threadId)
+        ? { type: "agentOpenThread", threadId: value.threadId }
+        : null;
+    case "agentDeleteThread":
+      return nonEmpty(value.threadId)
+        ? { type: "agentDeleteThread", threadId: value.threadId }
+        : null;
     case "agentSelectAgent":
       return agentId(value.agentId)
         ? { type: "agentSelectAgent", agentId: value.agentId }
@@ -67,6 +75,14 @@ export function parseAgentWebviewMessage(
         ? {
             type: "agentAuthenticate",
             ...(value.methodId ? { methodId: value.methodId } : {}),
+          }
+        : null;
+    case "agentOpenDiff":
+      return nonEmpty(value.turnId) && nonEmpty(value.path)
+        ? {
+            type: "agentOpenDiff",
+            turnId: value.turnId,
+            path: value.path,
           }
         : null;
     case "agentOpenLocation":

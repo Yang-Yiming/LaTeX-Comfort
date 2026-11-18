@@ -102,8 +102,33 @@ export type AgentUiEntry =
       text: string;
     };
 
+export interface AgentUiChangeFile {
+  path: string;
+  kind: "created" | "modified" | "deleted";
+  additions: number;
+  deletions: number;
+}
+
+export interface AgentUiTurnSummary {
+  id: string;
+  threadId: string;
+  threadTitle: string;
+  createdAt: number;
+  prompt: string;
+  changes: AgentUiChangeFile[];
+}
+
+export interface AgentUiThreadSummary {
+  id: string;
+  title: string;
+  agentId: AgentUiAgentId;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface AgentUiSnapshot {
   revision: number;
+  threadId: string;
   agentId: AgentUiAgentId;
   agentLabel: string;
   phase: AgentUiPhase;
@@ -113,6 +138,8 @@ export interface AgentUiSnapshot {
   currentModel?: string;
   visibleModels?: string[];
   authMethods: AgentUiAuthMethod[];
+  threads: AgentUiThreadSummary[];
+  turns: AgentUiTurnSummary[];
   context?: AgentUiContext;
   error?: string;
 }
@@ -127,6 +154,8 @@ export type AgentWebviewToHostMessage =
   | { type: "agentSend"; text: string }
   | { type: "agentCancel" }
   | { type: "agentNewThread" }
+  | { type: "agentOpenThread"; threadId: string }
+  | { type: "agentDeleteThread"; threadId: string }
   | { type: "agentSelectAgent"; agentId: AgentUiAgentId }
   | {
       type: "agentSelectConfig";
@@ -143,5 +172,6 @@ export type AgentWebviewToHostMessage =
       optionId?: string;
     }
   | { type: "agentAuthenticate"; methodId?: string }
+  | { type: "agentOpenDiff"; turnId: string; path: string }
   | { type: "agentOpenLocation"; path: string; line?: number }
   | { type: "agentOpenSettings" };

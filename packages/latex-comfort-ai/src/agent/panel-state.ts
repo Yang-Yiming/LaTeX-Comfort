@@ -8,7 +8,8 @@ import type {
 } from "@latex-comfort/shared";
 import type { AgentEvent } from "./types";
 
-export interface AgentPanelState extends AgentUiSnapshot {
+export interface AgentPanelState
+  extends Omit<AgentUiSnapshot, "threadId" | "threads" | "turns"> {
   readonly nextUserId: number;
   readonly fallbackAssistantId: string;
   readonly now: () => number;

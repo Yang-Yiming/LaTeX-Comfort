@@ -11,3 +11,8 @@ or Codex. The panel uses whichever local CLI agent you have installed and
 authenticated, and keeps one ACP session alive across multiple turns. Models
 load before the first prompt; use **Manage visible models** in the model menu to
 curate the selector.
+
+The history button keeps saved threads and records the files changed by each
+turn. Open a changed file from **History → Changes** to review it in VS Code's
+native diff editor. Threads resume through ACP when the CLI supports session
+resume or load.
