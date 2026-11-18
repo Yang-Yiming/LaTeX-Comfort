@@ -1,6 +1,6 @@
 # OpenCode and Codex ACP Integration Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Add a minimal ACP runtime to `latex-comfort-ai` that runs OpenCode 2 or Codex from the VS Code Command Palette, streams agent output, supports cancellation and basic permissions, and leaves the existing selection-edit flow unchanged.
 
@@ -39,11 +39,11 @@
 - Produces: `AgentId`, `AgentDefinition`, `AgentEvent`, `agentDefinitions(settings)`.
 - Produces: `mapSessionUpdate(update: unknown): AgentEvent[]`.
 
-- [ ] Write failing tests for OpenCode args, Codex args/env, custom paths, and text/thinking/tool/unknown update mapping.
-- [ ] Run `pnpm exec vitest run packages/latex-comfort-ai/src/agent/definitions.test.ts packages/latex-comfort-ai/src/agent/acp-events.test.ts`; confirm failure because modules do not exist.
-- [ ] Implement the three modules.
-- [ ] Re-run the focused tests; confirm pass.
-- [ ] Commit `feat: add ACP agent definitions and event mapping`.
+- [x] Write failing tests for OpenCode args, Codex args/env, custom paths, and text/thinking/tool/unknown update mapping.
+- [x] Run `pnpm exec vitest run packages/latex-comfort-ai/src/agent/definitions.test.ts packages/latex-comfort-ai/src/agent/acp-events.test.ts`; confirm failure because modules do not exist.
+- [x] Implement the three modules.
+- [x] Re-run the focused tests; confirm pass.
+- [x] Commit `feat: add ACP agent definitions and event mapping`.
 
 ### Task 2: Generic ACP session and runner
 
@@ -57,14 +57,14 @@
 - Produces: `runAcpAgent(options): Promise<void>`.
 - `runAcpAgent` accepts definition, cwd, prompt, event sink, permission callback, and cancellation signal.
 
-- [ ] Write a failing test using the SDK's in-process `client()`/`agent()` pair: initialize, session/new, text prompt, stop, and permission response.
-- [ ] Run the focused test and confirm it fails.
-- [ ] Implement `AcpSession` using `ndJsonStream`, `client({ name })`, `connectWith`, `ctx.request(methods.agent.initialize, ...)`, and `ctx.buildSession(cwd).start()`.
-- [ ] Implement update draining through `ActiveSession.nextUpdate()` and cancellation through `session.prompt` options or `ctx.notify(methods.agent.session.cancel, ...)`.
-- [ ] Implement permission handling by returning `{ outcome: { outcome: "selected", optionId } }` or `{ outcome: { outcome: "cancelled" } }`.
-- [ ] Add `runner.ts` process spawning with `shell: false`, bounded stderr tail, cancellation cleanup, and process-tree termination.
-- [ ] Re-run focused tests; confirm pass.
-- [ ] Commit `feat: add generic ACP agent session`.
+- [x] Write a failing test using the SDK's in-process `client()`/`agent()` pair: initialize, session/new, text prompt, stop, and permission response.
+- [x] Run the focused test and confirm it fails.
+- [x] Implement `AcpSession` using `ndJsonStream`, `client({ name })`, `connectWith`, `ctx.request(methods.agent.initialize, ...)`, and `ctx.buildSession(cwd).start()`.
+- [x] Implement update draining through `ActiveSession.nextUpdate()` and cancellation through `session.prompt` options or `ctx.notify(methods.agent.session.cancel, ...)`.
+- [x] Implement permission handling by returning `{ outcome: { outcome: "selected", optionId } }` or `{ outcome: { outcome: "cancelled" } }`.
+- [x] Add `runner.ts` process spawning with `shell: false`, bounded stderr tail, cancellation cleanup, and process-tree termination.
+- [x] Re-run focused tests; confirm pass.
+- [x] Commit `feat: add generic ACP agent session`.
 
 ### Task 3: Minimal Command Palette UX and settings
 
@@ -79,13 +79,13 @@
 - Consumes: `runAcpAgent`.
 - Produces: command ID `latexComfort.ai.runAgent` and command `runAgentCommand`.
 
-- [ ] Write failing tests for agent picker labels, missing workspace behavior, and cancellation wiring with injected VS Code dependencies.
-- [ ] Run the focused test and confirm failure.
-- [ ] Add the shared command constant and register the command.
-- [ ] Add an OutputChannel named `LaTeX Comfort Agent`, agent QuickPick, prompt InputBox, progress notification, permission notification, and cancellation.
-- [ ] Add `latexComfort.ai.agent.opencodePath`, `codexAcpPath`, and `codexPath` settings.
-- [ ] Re-run focused tests; confirm pass.
-- [ ] Commit `feat: add Run Agent command for OpenCode and Codex`.
+- [x] Write failing tests for agent picker labels, missing workspace behavior, and cancellation wiring with injected VS Code dependencies.
+- [x] Run the focused test and confirm failure.
+- [x] Add the shared command constant and register the command.
+- [x] Add an OutputChannel named `LaTeX Comfort Agent`, agent QuickPick, prompt InputBox, progress notification, permission notification, and cancellation.
+- [x] Add `latexComfort.ai.agent.opencodePath`, `codexAcpPath`, and `codexPath` settings.
+- [x] Re-run focused tests; confirm pass.
+- [x] Commit `feat: add Run Agent command for OpenCode and Codex`.
 
 ### Task 4: Integration fixture and release verification
 
@@ -99,13 +99,13 @@
 - Consumes: `runAcpAgent`.
 - Produces: process-level proof that a real stdio child can initialize, prompt, stream, request permission, and exit.
 
-- [ ] Write a failing process test that launches the fake ACP agent through `runAcpAgent`.
-- [ ] Run it and confirm failure.
-- [ ] Implement the fake agent with the SDK's agent-side API and a minimal prompt/permission flow.
-- [ ] Re-run the process test; confirm pass.
-- [ ] Run `pnpm exec vitest run packages/latex-comfort-ai/src/agent`.
-- [ ] Run `pnpm --filter latex-comfort-ai typecheck`.
-- [ ] Run `pnpm --filter latex-comfort-ai build`.
-- [ ] Run the full `pnpm test`.
-- [ ] Manually smoke test `opencode acp` if available, without sending model requests where possible.
-- [ ] Commit `test: cover ACP process integration`.
+- [x] Write a failing process test that launches the fake ACP agent through `runAcpAgent`.
+- [x] Run it and confirm failure.
+- [x] Implement the fake agent with the SDK's agent-side API and a minimal prompt/permission flow.
+- [x] Re-run the process test; confirm pass.
+- [x] Run `pnpm exec vitest run packages/latex-comfort-ai/src/agent`.
+- [x] Run `pnpm --filter latex-comfort-ai typecheck`.
+- [x] Run `pnpm --filter latex-comfort-ai build`.
+- [x] Run the full `pnpm test`.
+- [x] Manually smoke test `opencode acp` if available, without sending model requests where possible.
+- [x] Commit `test: cover ACP process integration`.
