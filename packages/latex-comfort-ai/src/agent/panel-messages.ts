@@ -43,6 +43,16 @@ export function parseAgentWebviewMessage(
             value: value.value,
           }
         : null;
+    case "agentSetVisibleModels":
+      return value.values === null ||
+        (Array.isArray(value.values) &&
+          value.values.length > 0 &&
+          value.values.every(nonEmpty))
+        ? {
+            type: "agentSetVisibleModels",
+            values: value.values as string[] | null,
+          }
+        : null;
     case "agentResolvePermission":
       return nonEmpty(value.permissionId) &&
         (value.optionId === undefined || nonEmpty(value.optionId))

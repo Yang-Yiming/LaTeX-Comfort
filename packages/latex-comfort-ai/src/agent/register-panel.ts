@@ -13,6 +13,9 @@ import { AgentPanelSurface } from "./panel-surface";
 import type { AgentId, AgentSettings } from "./types";
 
 const LAST_AGENT_KEY = "latexComfort.agent.lastAgent";
+const VISIBLE_MODELS_KEY = "latexComfort.agent.visibleModels";
+
+type StoredVisibleModels = Record<string, string[]>;
 
 function readSettings(): AgentSettings {
   const config = vscode.workspace.getConfiguration("latexComfort.ai.agent");
@@ -129,10 +132,27 @@ function initialAgent(context: vscode.ExtensionContext): AgentId {
   return stored === "codex" ? "codex" : "opencode";
 }
 
+function readVisibleModels(
+  context: vscode.ExtensionContext,
+): Partial<Record<AgentId, string[]>> {
+  const stored = context.globalState.get<StoredVisibleModels>(VISIBLE_MODELS_KEY);
+  if (!stored) return {};
+  const result: Partial<Record<AgentId, string[]>> = {};
+  for (const agentId of ["opencode", "codex"] as const) {
+    const values = stored[agentId];
+    if (Array.isArray(values) && values.length > 0) {
+      const models = [...new Set(values.filter((value) => typeof value === "string" && value))];
+      if (models.length > 0) result[agentId] = models;
+    }
+  }
+  return result;
+}
+
 export function registerAgentPanel(
   context: vscode.ExtensionContext,
 ): vscode.Disposable[] {
   const settings = readSettings();
+  let visibleModels = readVisibleModels(context);
   let panel: AgentPanelSurface;
   let controller: AgentPanelController;
 
@@ -148,11 +168,14 @@ export function registerAgentPanel(
         await controller.newThread();
         return;
       case "agentSelectAgent":
-        controller.selectAgent(message.agentId);
+        await controller.selectAgent(message.agentId);
         await context.workspaceState.update(LAST_AGENT_KEY, message.agentId);
         return;
       case "agentSelectConfig":
         await controller.selectConfig(message.configId, message.value);
+        return;
+      case "agentSetVisibleModels":
+        await controller.setVisibleModels(message.values);
         return;
       case "agentResolvePermission":
         controller.resolvePermission(message.permissionId, message.optionId);
@@ -174,7 +197,11 @@ export function registerAgentPanel(
     }
   };
 
-  panel = new AgentPanelSurface(context.extensionUri, dispatch);
+  panel = new AgentPanelSurface(
+    context.extensionUri,
+    dispatch,
+    () => void controller.releaseIdleSession(),
+  );
   controller = new AgentPanelController({
     settings,
     workspaceDirectory,
@@ -191,12 +218,21 @@ export function registerAgentPanel(
         ? { codex: settings.codexModel.trim() }
         : {}),
     },
+    initialVisibleModels: visibleModels,
+    onVisibleModelsChanged: async (agentId, values) => {
+      const next = { ...visibleModels };
+      if (values) next[agentId] = values;
+      else delete next[agentId];
+      visibleModels = next;
+      await context.globalState.update(VISIBLE_MODELS_KEY, next);
+    },
   });
 
   const open = (): void => {
     controller.setContext(editorContext());
     panel.show();
     panel.render(controller.snapshot());
+    void controller.prepare();
   };
 
   const refreshContext = (): void => {

@@ -41,6 +41,7 @@ function render(value: AgentUiSnapshot): string {
       onNewThread: noop,
       onSelectAgent: noop,
       onSelectConfig: noop,
+      onSetVisibleModels: noop,
       onResolvePermission: noop,
       onAuthenticate: noop,
       onOpenLocation: noop,

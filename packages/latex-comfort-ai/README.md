@@ -15,8 +15,10 @@ This extension requires the **LaTeX Comfort** core extension.
 
 Run **LaTeX Comfort AI: Open Agent** to open the Agent beside the editor.
 Choose OpenCode or Codex, pick the model exposed by the agent, and keep the
-same ACP session across multiple turns. Tool activity and permission requests
-appear inline; stopping or starting a new thread closes the current ACP session.
+same ACP session across multiple turns. Models are loaded as soon as the panel
+opens; use **Manage visible models** in the model menu to curate the selector.
+Tool activity and permission requests appear inline; stopping or starting a new
+thread closes the current ACP session.
 
 The panel uses your locally installed and authenticated CLI agents. OpenCode is
 started with `opencode acp`; Codex uses `codex-acp` and the configured Codex

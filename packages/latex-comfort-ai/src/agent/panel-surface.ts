@@ -15,6 +15,7 @@ export class AgentPanelSurface implements vscode.Disposable {
     private readonly dispatch: (
       message: AgentWebviewToHostMessage,
     ) => Promise<void> | void,
+    private readonly onDidDispose?: () => void,
   ) {}
 
   show(): void {
@@ -85,6 +86,7 @@ export class AgentPanelSurface implements vscode.Disposable {
       if (this.panel === panel) {
         this.panel = undefined;
         this.ready = false;
+        this.onDidDispose?.();
       }
     });
 

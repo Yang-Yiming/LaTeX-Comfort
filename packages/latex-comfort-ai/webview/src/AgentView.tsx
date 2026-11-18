@@ -6,10 +6,10 @@
  */
 import {
   useEffect,
+  useMemo,
   useRef,
   useState,
   type KeyboardEvent,
-  type ReactNode,
 } from "react";
 import type {
   AgentUiAgentId,
@@ -25,6 +25,7 @@ export interface AgentViewProps {
   onNewThread(): void;
   onSelectAgent(agentId: AgentUiAgentId): void;
   onSelectConfig(configId: string, value: string): void;
+  onSetVisibleModels(values: string[] | null): void;
   onResolvePermission(permissionId: string, optionId?: string): void;
   onAuthenticate(methodId?: string): void;
   onOpenLocation(path: string, line?: number): void;
@@ -87,7 +88,9 @@ function Icon({
     | "cite"
     | "edit"
     | "tool"
-    | "branch";
+    | "branch"
+    | "search"
+    | "close";
   size?: number;
 }) {
   const common = {
@@ -130,6 +133,10 @@ function Icon({
       return <svg {...common}><path d="m4 11.8.7-2.8 6.1-6.1 2.3 2.3-6.1 6.1zM9.8 3.9l2.3 2.3" /></svg>;
     case "branch":
       return <svg {...common}><circle cx="4.5" cy="3.5" r="1.3" /><circle cx="11.5" cy="4" r="1.3" /><circle cx="11.5" cy="12" r="1.3" /><path d="M4.5 4.8v1.5c0 2 2.4 2.3 4.3 2.7 1.2.3 2.7.8 2.7 2.3V10.7" /></svg>;
+    case "search":
+      return <svg {...common}><circle cx="7" cy="7" r="4" /><path d="m10 10 3 3" /></svg>;
+    case "close":
+      return <svg {...common}><path d="m4.5 4.5 7 7M11.5 4.5l-7 7" /></svg>;
     default:
       return <svg {...common}><circle cx="8" cy="8" r="5.2" /><path d="M8 5.5v3.2" /></svg>;
   }
@@ -343,22 +350,120 @@ function EmptyState({
   );
 }
 
+function providerOf(value: string): string {
+  const index = value.indexOf("/");
+  return index > 0 ? value.slice(0, index) : "Other";
+}
+
+function groupModels(
+  options: Array<{ value: string; label: string }>,
+): Array<{ provider: string; models: Array<{ value: string; label: string }> }> {
+  const groups = new Map<string, Array<{ value: string; label: string }>>();
+  for (const option of options) {
+    const provider = providerOf(option.value);
+    const models = groups.get(provider) ?? [];
+    models.push(option);
+    groups.set(provider, models);
+  }
+  return [...groups.entries()].map(([provider, models]) => ({
+    provider: provider === "Other" ? "Models" : provider,
+    models,
+  }));
+}
+
 function ModelPicker({
   options,
+  visibleModels,
+  phase,
   onChange,
+  onSetVisibleModels,
 }: {
   options: AgentUiConfigOption[];
+  visibleModels?: string[];
+  phase: AgentUiSnapshot["phase"];
   onChange(configId: string, value: string): void;
+  onSetVisibleModels(values: string[] | null): void;
 }) {
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [managing, setManaging] = useState(false);
+  const [managerQuery, setManagerQuery] = useState("");
+  const [selection, setSelection] = useState<Set<string>>(new Set());
   const model = options.find(
     (option) => option.id === "model" || option.category === "model",
   );
+  const allOptions = model?.options ?? [];
+  const visibleSet = visibleModels ? new Set(visibleModels) : undefined;
+  const visibleOptions = visibleSet
+    ? allOptions.filter((option) => visibleSet.has(option.value))
+    : allOptions;
   const current =
-    model?.options.find((option) => option.value === model.currentValue)?.label ||
+    allOptions.find((option) => option.value === model?.currentValue)?.label ||
     model?.currentValue ||
     "Default model";
-  if (!model) return <span className="agent-model-label">{current}</span>;
+  const filtered = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    return needle
+      ? visibleOptions.filter(
+          (option) =>
+            option.label.toLowerCase().includes(needle) ||
+            option.value.toLowerCase().includes(needle),
+        )
+      : visibleOptions;
+  }, [query, visibleOptions]);
+  const groups = useMemo(() => groupModels(filtered), [filtered]);
+  const managerGroups = useMemo(() => {
+    const needle = managerQuery.trim().toLowerCase();
+    const filteredOptions = needle
+      ? allOptions.filter(
+          (option) =>
+            option.label.toLowerCase().includes(needle) ||
+            option.value.toLowerCase().includes(needle),
+        )
+      : allOptions;
+    return groupModels(filteredOptions);
+  }, [allOptions, managerQuery]);
+
+  const unavailableLabel =
+    phase === "starting"
+      ? "Loading models…"
+      : phase === "authentication_required"
+        ? "Sign in to load models"
+        : phase === "failed"
+          ? "Models unavailable"
+          : "Default model";
+
+  const openManager = () => {
+    setManagerQuery("");
+    setSelection(new Set(visibleModels ?? allOptions.map((option) => option.value)));
+    setOpen(false);
+    setManaging(true);
+  };
+
+  const toggleSelection = (value: string) => {
+    setSelection((previous) => {
+      const next = new Set(previous);
+      if (next.has(value)) next.delete(value);
+      else next.add(value);
+      return next;
+    });
+  };
+
+  const saveManager = () => {
+    if (selection.size === 0) return;
+    const allSelected = selection.size === allOptions.length;
+    onSetVisibleModels(allSelected ? null : [...selection]);
+    setManaging(false);
+  };
+
+  if (!model) {
+    return (
+      <span className="agent-model-label" data-state={phase}>
+        {phase === "starting" ? <Icon name="spinner" size={12} /> : null}
+        {unavailableLabel}
+      </span>
+    );
+  }
 
   return (
     <div className="agent-model-picker">
@@ -373,26 +478,195 @@ function ModelPicker({
       </button>
       {open ? (
         <div className="agent-model-menu" role="menu" aria-label="Model">
-          <div className="agent-menu-label">Model</div>
-          {model.options.map((option) => (
-            <button
-              type="button"
-              role="menuitemradio"
-              aria-checked={option.value === model.currentValue}
-              data-active={option.value === model.currentValue || undefined}
-              key={option.value}
-              onClick={() => {
-                setOpen(false);
-                onChange(model.id, option.value);
-              }}
-            >
-              <span>{option.label}</span>
-              {option.value === model.currentValue ? <Icon name="check" size={13} /> : null}
-            </button>
-          ))}
+          <div className="agent-model-search">
+            <Icon name="search" size={13} />
+            <input
+              value={query}
+              aria-label="Search models"
+              placeholder="Search models…"
+              onChange={(event) => setQuery(event.target.value)}
+              autoFocus
+            />
+          </div>
+          <div className="agent-model-options">
+            {groups.length > 0 ? (
+              groups.map((group) => (
+                <div className="agent-model-group" key={group.provider}>
+                  <div className="agent-menu-label">{group.provider}</div>
+                  {group.models.map((option) => (
+                    <button
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={option.value === model.currentValue}
+                      data-active={option.value === model.currentValue || undefined}
+                      key={option.value}
+                      onClick={() => {
+                        setOpen(false);
+                        setQuery("");
+                        onChange(model.id, option.value);
+                      }}
+                    >
+                      <span>{option.label}</span>
+                      {option.value === model.currentValue ? <Icon name="check" size={13} /> : null}
+                    </button>
+                  ))}
+                </div>
+              ))
+            ) : (
+              <p className="agent-model-empty">No models match “{query}”.</p>
+            )}
+          </div>
+          <button
+            type="button"
+            className="agent-manage-models"
+            onClick={openManager}
+          >
+            <Icon name="settings" size={13} />
+            <span>
+              Manage visible models
+              <small>
+                {visibleModels ? `${visibleOptions.length} of ${allOptions.length}` : "All models"}
+              </small>
+            </span>
+            <Icon name="chevron" size={12} />
+          </button>
+        </div>
+      ) : null}
+
+      {managing ? (
+        <div
+          className="agent-model-overlay"
+          role="presentation"
+          onMouseDown={() => setManaging(false)}
+        >
+          <section
+            className="agent-model-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Visible models"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
+            <header className="agent-model-dialog-header">
+              <div>
+                <strong>Visible models</strong>
+                <span>Choose what appears in the model selector.</span>
+              </div>
+              <button
+                type="button"
+                className="agent-icon-button"
+                aria-label="Close model settings"
+                onClick={() => setManaging(false)}
+              >
+                <Icon name="close" size={14} />
+              </button>
+            </header>
+            <div className="agent-model-dialog-tools">
+              <label className="agent-model-search is-dialog">
+                <Icon name="search" size={13} />
+                <input
+                  value={managerQuery}
+                  aria-label="Search all models"
+                  placeholder="Search all models…"
+                  onChange={(event) => setManagerQuery(event.target.value)}
+                  autoFocus
+                />
+              </label>
+              <button
+                type="button"
+                className="agent-text-button"
+                onClick={() =>
+                  setSelection(new Set(allOptions.map((option) => option.value)))
+                }
+              >
+                All
+              </button>
+              <button
+                type="button"
+                className="agent-text-button"
+                onClick={() => setSelection(new Set())}
+              >
+                None
+              </button>
+            </div>
+            <div className="agent-model-dialog-list">
+              {managerGroups.length > 0 ? (
+                managerGroups.map((group) => (
+                  <div className="agent-model-group" key={group.provider}>
+                    <div className="agent-menu-label">{group.provider}</div>
+                    {group.models.map((option) => {
+                      const checked = selection.has(option.value);
+                      return (
+                        <button
+                          type="button"
+                          role="checkbox"
+                          aria-checked={checked}
+                          className="agent-model-check"
+                          data-checked={checked || undefined}
+                          key={option.value}
+                          onClick={() => toggleSelection(option.value)}
+                        >
+                          <span className="agent-checkbox">
+                            {checked ? <Icon name="check" size={11} /> : null}
+                          </span>
+                          <span>{option.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ))
+              ) : (
+                <p className="agent-model-empty">No models match “{managerQuery}”.</p>
+              )}
+            </div>
+            <footer className="agent-model-dialog-footer">
+              <span>
+                {selection.size} of {allOptions.length} selected
+              </span>
+              <div>
+                <button
+                  type="button"
+                  className="agent-button quiet"
+                  onClick={() => setManaging(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="agent-button"
+                  disabled={selection.size === 0}
+                  onClick={saveManager}
+                >
+                  Save
+                </button>
+              </div>
+            </footer>
+          </section>
         </div>
       ) : null}
     </div>
+  );
+}
+
+function AgentErrorBanner({
+  snapshot,
+  onOpenSettings,
+}: {
+  snapshot: AgentUiSnapshot;
+  onOpenSettings(): void;
+}) {
+  if (snapshot.phase !== "failed" || !snapshot.error) return null;
+  return (
+    <section className="agent-auth is-error" aria-label="Agent unavailable">
+      <div>
+        <strong>Agent unavailable</strong>
+        <p>{snapshot.error}</p>
+      </div>
+      <div className="agent-auth-actions">
+        <button type="button" className="agent-button" onClick={onOpenSettings}>
+          Open settings
+        </button>
+      </div>
+    </section>
   );
 }
 
@@ -439,7 +713,6 @@ export function AgentView(props: AgentViewProps) {
   const list = useRef<HTMLDivElement>(null);
   const busy =
     snapshot.phase === "running" ||
-    snapshot.phase === "starting" ||
     snapshot.phase === "waiting_permission" ||
     snapshot.phase === "authentication_required";
 
@@ -532,6 +805,10 @@ export function AgentView(props: AgentViewProps) {
       </div>
 
       <footer className="agent-composer-wrap">
+        <AgentErrorBanner
+          snapshot={snapshot}
+          onOpenSettings={props.onOpenSettings}
+        />
         <AuthBanner snapshot={snapshot} onAuthenticate={props.onAuthenticate} />
         {snapshot.context ? (
           <div className="agent-context-chip" title={snapshot.context.selectedText}>
@@ -550,7 +827,6 @@ export function AgentView(props: AgentViewProps) {
             onKeyDown={onComposerKeyDown}
           />
           {snapshot.phase === "running" ||
-          snapshot.phase === "starting" ||
           snapshot.phase === "waiting_permission" ? (
             <button
               type="button"
@@ -577,7 +853,10 @@ export function AgentView(props: AgentViewProps) {
         <div className="agent-composer-footer">
           <ModelPicker
             options={snapshot.configOptions}
+            visibleModels={snapshot.visibleModels}
+            phase={snapshot.phase}
             onChange={props.onSelectConfig}
+            onSetVisibleModels={props.onSetVisibleModels}
           />
           <span className="agent-phase" data-phase={snapshot.phase}>
             {snapshot.phase === "running" || snapshot.phase === "starting" ? (

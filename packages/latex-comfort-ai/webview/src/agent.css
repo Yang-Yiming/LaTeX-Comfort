@@ -503,8 +503,13 @@ summary:focus-visible {
   cursor: pointer;
 }
 
-.agent-button:hover {
+.agent-button:hover:not(:disabled) {
   background: var(--agent-button-hover);
+}
+
+.agent-button:disabled {
+  opacity: 0.4;
+  cursor: default;
 }
 
 .agent-button.quiet {
@@ -713,19 +718,253 @@ summary:focus-visible {
   color: var(--agent-ink);
 }
 
+.agent-model-label[data-state="starting"] {
+  color: var(--agent-muted);
+}
+
+.agent-model-label[data-state="failed"] {
+  color: var(--agent-danger);
+}
+
 .agent-model-menu {
   position: absolute;
   z-index: 20;
   left: 0;
   bottom: calc(100% + 6px);
-  width: min(320px, 72vw);
-  max-height: 320px;
-  overflow: auto;
+  width: min(390px, 78vw);
+  max-height: min(460px, 70vh);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   padding: 5px;
   border: 1px solid var(--vscode-widget-border, var(--agent-border));
   border-radius: 9px;
   background: var(--vscode-dropdown-background, var(--agent-lift));
   box-shadow: 0 10px 28px color-mix(in srgb, #000 24%, transparent);
+}
+
+.agent-model-search {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--agent-border-soft);
+  border-radius: 7px;
+  background: var(--vscode-input-background, var(--agent-panel));
+  color: var(--agent-muted);
+}
+
+.agent-model-search:focus-within {
+  border-color: var(--agent-accent);
+}
+
+.agent-model-search input {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--vscode-input-foreground, var(--agent-ink));
+  font-size: 11.5px;
+}
+
+.agent-model-search input::placeholder {
+  color: var(--vscode-input-placeholderForeground, var(--agent-muted));
+}
+
+.agent-model-options {
+  min-height: 0;
+  overflow: auto;
+  padding-top: 4px;
+}
+
+.agent-model-group + .agent-model-group {
+  margin-top: 2px;
+}
+
+.agent-model-menu .agent-menu-label {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--vscode-dropdown-background, var(--agent-lift));
+}
+
+.agent-model-empty {
+  margin: 0;
+  padding: 12px 8px;
+  color: var(--agent-muted);
+  font-size: 11px;
+  text-align: center;
+}
+
+.agent-manage-models {
+  flex: none;
+  display: grid !important;
+  grid-template-columns: 16px minmax(0, 1fr) 12px;
+  align-items: center !important;
+  gap: 8px !important;
+  margin-top: 5px;
+  padding-top: 8px !important;
+  border-top: 1px solid var(--agent-border-soft) !important;
+  border-radius: 0 0 6px 6px !important;
+  color: var(--agent-muted) !important;
+}
+
+.agent-manage-models > span {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  text-align: left;
+}
+
+.agent-manage-models small {
+  color: var(--agent-muted);
+  font-size: 9.5px;
+  font-weight: 400;
+}
+
+.agent-model-overlay {
+  position: fixed;
+  z-index: 100;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 14px;
+  background: color-mix(in srgb, #000 34%, transparent);
+  backdrop-filter: blur(1.5px);
+}
+
+.agent-model-dialog {
+  width: min(580px, calc(100vw - 28px));
+  max-height: min(700px, calc(100vh - 28px));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--vscode-widget-border, var(--agent-border));
+  border-radius: 12px;
+  background: var(--vscode-editorWidget-background, var(--agent-lift));
+  color: var(--agent-ink);
+  box-shadow: 0 18px 48px color-mix(in srgb, #000 34%, transparent);
+}
+
+.agent-model-dialog-header {
+  flex: none;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 14px 10px 16px;
+  border-bottom: 1px solid var(--agent-border-soft);
+}
+
+.agent-model-dialog-header > div {
+  flex: 1;
+}
+
+.agent-model-dialog-header strong {
+  display: block;
+  font-size: 13px;
+}
+
+.agent-model-dialog-header span {
+  display: block;
+  margin-top: 3px;
+  color: var(--agent-muted);
+  font-size: 11px;
+}
+
+.agent-model-dialog-tools {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px;
+}
+
+.agent-model-search.is-dialog {
+  flex: 1;
+}
+
+.agent-text-button {
+  min-height: 27px;
+  padding: 3px 7px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--agent-muted);
+  cursor: pointer;
+  font-size: 10.5px;
+}
+
+.agent-text-button:hover {
+  background: var(--agent-hover);
+  color: var(--agent-ink);
+}
+
+.agent-model-dialog-list {
+  min-height: 100px;
+  overflow: auto;
+  padding: 0 8px 8px;
+}
+
+.agent-model-check {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--agent-ink);
+  text-align: left;
+  cursor: pointer;
+  font-size: 11.5px;
+}
+
+.agent-model-check:hover {
+  background: var(--agent-hover);
+}
+
+.agent-checkbox {
+  width: 14px;
+  height: 14px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--agent-border);
+  border-radius: 3px;
+  color: var(--agent-button-ink);
+}
+
+.agent-model-check[data-checked] .agent-checkbox {
+  border-color: var(--agent-button);
+  background: var(--agent-button);
+}
+
+.agent-model-dialog-footer {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--agent-border-soft);
+  background: var(--agent-panel);
+}
+
+.agent-model-dialog-footer > span {
+  color: var(--agent-muted);
+  font-size: 10.5px;
+}
+
+.agent-model-dialog-footer > div {
+  display: flex;
+  gap: 6px;
 }
 
 .agent-menu-label {
@@ -777,6 +1016,15 @@ summary:focus-visible {
   height: 5px;
   border-radius: 50%;
   background: var(--agent-warning);
+}
+
+.agent-auth.is-error {
+  border-color: color-mix(in srgb, var(--agent-danger) 38%, var(--agent-border));
+  background: color-mix(in srgb, var(--agent-danger) 7%, var(--agent-panel));
+}
+
+.agent-auth.is-error strong {
+  color: var(--agent-danger);
 }
 
 .agent-auth {

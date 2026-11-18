@@ -8,4 +8,6 @@ Use `latexComfort.ai.review.presentation` to choose between `auto`, `sidePanel`,
 
 Run **LaTeX Comfort AI: Open Agent** to try the ACP Agent panel with OpenCode
 or Codex. The panel uses whichever local CLI agent you have installed and
-authenticated, and keeps one ACP session alive across multiple turns.
+authenticated, and keeps one ACP session alive across multiple turns. Models
+load before the first prompt; use **Manage visible models** in the model menu to
+curate the selector.

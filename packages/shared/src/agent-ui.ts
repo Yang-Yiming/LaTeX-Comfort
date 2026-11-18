@@ -111,6 +111,7 @@ export interface AgentUiSnapshot {
   entries: AgentUiEntry[];
   configOptions: AgentUiConfigOption[];
   currentModel?: string;
+  visibleModels?: string[];
   authMethods: AgentUiAuthMethod[];
   context?: AgentUiContext;
   error?: string;
@@ -131,6 +132,10 @@ export type AgentWebviewToHostMessage =
       type: "agentSelectConfig";
       configId: string;
       value: string;
+    }
+  | {
+      type: "agentSetVisibleModels";
+      values: string[] | null;
     }
   | {
       type: "agentResolvePermission";

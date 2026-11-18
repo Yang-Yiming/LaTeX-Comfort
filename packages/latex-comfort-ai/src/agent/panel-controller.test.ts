@@ -194,6 +194,6 @@ describe("AgentPanelController", () => {
     await instance.newThread();
     expect(instance.snapshot().entries).toEqual([]);
     expect(instance.snapshot().currentModel).toBe("provider/two");
-    expect(createRuntime).toHaveBeenCalledTimes(1);
+    await vi.waitFor(() => expect(createRuntime).toHaveBeenCalledTimes(2));
   });
 });
