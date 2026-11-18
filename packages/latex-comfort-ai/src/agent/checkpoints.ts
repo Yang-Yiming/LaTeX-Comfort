@@ -11,6 +11,7 @@ import nodePath from "node:path";
 import * as vscode from "vscode";
 import type { AgentUiChangeFile } from "@latex-comfort/shared";
 import type {
+  AgentCheckpointFileVersions,
   AgentRestoreResult,
   AgentTurnCheckpointService,
   AgentWorkspaceSnapshot,
@@ -271,6 +272,25 @@ export class AgentCheckpointService
       `${file.path} · Agent ${file.kind}`,
       { preview: false },
     );
+  }
+
+  async versions(
+    turnId: string,
+    filePath: string,
+  ): Promise<AgentCheckpointFileVersions | undefined> {
+    const manifest = await this.readManifest(turnId);
+    const file = manifest?.files.find((candidate) => candidate.path === filePath);
+    if (!manifest || !file) return undefined;
+    return {
+      root: manifest.root,
+      absolutePath: nodePath.resolve(manifest.root, file.path),
+      beforeText: file.beforeHash
+        ? await this.readContent(file.beforeHash)
+        : "",
+      afterText: file.afterHash
+        ? await this.readContent(file.afterHash)
+        : "",
+    };
   }
 
   async restoreTurn(turnId: string): Promise<AgentRestoreResult> {

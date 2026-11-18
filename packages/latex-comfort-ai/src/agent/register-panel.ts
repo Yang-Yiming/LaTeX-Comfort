@@ -7,6 +7,7 @@ import {
   type AgentUiContext,
   type AgentWebviewToHostMessage,
 } from "@latex-comfort/shared";
+import { AgentTurnReview } from "./agent-review";
 import { AgentCheckpointService } from "./checkpoints";
 import { createInteractiveRuntime } from "./interactive-runtime";
 import { AgentPanelController } from "./panel-controller";
@@ -157,6 +158,7 @@ export function registerAgentPanel(
   let visibleModels = readVisibleModels(context);
   const threadStore = new AgentThreadStore(context.globalStorageUri.fsPath);
   const checkpoints = new AgentCheckpointService(context.globalStorageUri.fsPath);
+  const turnReview = new AgentTurnReview(checkpoints);
   let panel: AgentPanelSurface;
   let controller: AgentPanelController;
 
@@ -194,7 +196,7 @@ export function registerAgentPanel(
         await controller.authenticate(message.methodId);
         return;
       case "agentOpenDiff":
-        await controller.openDiff(message.turnId, message.path);
+        await turnReview.open(message.turnId, message.path);
         return;
       case "agentOpenTurnDiffs":
         await controller.openTurnDiffs(message.turnId);
@@ -281,6 +283,7 @@ export function registerAgentPanel(
     vscode.window.onDidChangeTextEditorSelection(refreshContext),
     { dispose: () => void controller.dispose() },
     checkpoints,
+    turnReview,
     panel,
   ];
 }

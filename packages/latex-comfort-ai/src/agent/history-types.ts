@@ -37,6 +37,13 @@ export interface AgentWorkspaceSnapshot {
   files: Record<string, string>;
 }
 
+export interface AgentCheckpointFileVersions {
+  root: string;
+  absolutePath: string;
+  beforeText: string;
+  afterText: string;
+}
+
 export interface AgentRestoreResult {
   restored: number;
   skipped: string[];
@@ -49,5 +56,9 @@ export interface AgentTurnCheckpointService {
     before: AgentWorkspaceSnapshot,
   ): Promise<AgentUiChangeFile[]>;
   openDiff(turnId: string, path: string): Promise<void>;
+  versions(
+    turnId: string,
+    path: string,
+  ): Promise<AgentCheckpointFileVersions | undefined>;
   restoreTurn(turnId: string): Promise<AgentRestoreResult>;
 }

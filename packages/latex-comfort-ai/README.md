@@ -31,6 +31,11 @@ Each turn can open all of its file diffs or restore the files it changed. Restor
 is fail-closed: a file modified after the agent turn is skipped rather than
 overwritten.
 
+Choosing one changed file opens an inline review in the real document. Added
+lines are decorated in place, removed text is shown beside its anchor line, and
+each hunk gets **Approve** / **Reject** CodeLens actions. Approve keeps the
+agent's text; Reject restores that hunk to its pre-turn content.
+
 The panel uses your locally installed and authenticated CLI agents. OpenCode is
 started with `opencode acp`; Codex uses `codex-acp` and the configured Codex
 CLI. Paths and default models are available under `latexComfort.ai.agent`.

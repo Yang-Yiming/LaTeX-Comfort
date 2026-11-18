@@ -893,6 +893,7 @@ function AgentHistoryDialog({
                         type="button"
                         className="agent-history-file"
                         key={`${turn.id}:${change.path}`}
+                        title="Review changes in the file"
                         onClick={() => onOpenDiff(turn.id, change.path)}
                       >
                         <span className={`agent-change-mark is-${change.kind}`}>
