@@ -3,7 +3,7 @@
  * src/build/compile-diagnostics.ts (Apache-2.0).
  * Copyright 2026 Leonardo and the Lattice contributors.
  * Licensed under the Apache License, Version 2.0.
- * Modified for LaTeX Comfort: VS Code diagnostics and compile-error-only view.
+ * Modified for LaTeX Comfort: VS Code diagnostics with errors and warnings.
  */
 
 export type CompileProblemSeverity = "error" | "warning" | "info" | "hint";
@@ -68,7 +68,7 @@ export function collectCompileProblems(
   const unique = new Map<string, CompileProblem>();
 
   for (const input of inputs) {
-    if (input.severity !== "error" || !isLatexSourceUri(input.uri)) continue;
+    if ((input.severity !== "error" && input.severity !== "warning") || !isLatexSourceUri(input.uri)) continue;
     const problem: CompileProblem = {
       ...input,
       message: input.message.trim(),
@@ -84,6 +84,8 @@ export function collectCompileProblems(
     if (line !== 0) return line;
     const character = left.range.start.character - right.range.start.character;
     if (character !== 0) return character;
+    const severity = Number(left.severity !== "error") - Number(right.severity !== "error");
+    if (severity !== 0) return severity;
     return left.message.localeCompare(right.message);
   });
 }
@@ -102,10 +104,12 @@ export function groupCompileProblems(
 
 export function summarizeCompileProblems(problems: readonly CompileProblem[]): {
   errors: number;
+  warnings: number;
   files: number;
 } {
   return {
-    errors: problems.length,
+    errors: problems.filter((problem) => problem.severity === "error").length,
+    warnings: problems.filter((problem) => problem.severity === "warning").length,
     files: new Set(problems.map((problem) => problem.fileLabel)).size,
   };
 }

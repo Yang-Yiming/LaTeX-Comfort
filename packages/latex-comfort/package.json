@@ -13,6 +13,18 @@
     "onCommand:latexComfort.showCompileProblems",
     "onCommand:latexComfort.toggleBold",
     "onCommand:latexComfort.toggleEmphasis",
+    "onCommand:latexComfort.toggleUnderline",
+    "onCommand:latexComfort.toggleInlineMath",
+    "onCommand:latexComfort.toggleDisplayMath",
+    "onCommand:latexComfort.toggleEquation",
+    "onCommand:latexComfort.toggleItemize",
+    "onCommand:latexComfort.toggleEnumerate",
+    "onCommand:latexComfort.toggleQuote",
+    "onCommand:latexComfort.toggleComment",
+    "onCommand:latexComfort.toggleIffalse",
+    "onCommand:latexComfort.insertSymbol",
+    "onCommand:latexComfort.nextCompileProblem",
+    "onCommand:latexComfort.previousCompileProblem",
     "onLanguage:latex",
     "onLanguage:markdown",
     "onView:latexComfort.papers"
@@ -32,6 +44,66 @@
       {
         "command": "latexComfort.toggleEmphasis",
         "title": "Toggle Emphasis",
+        "category": "LaTeX Comfort"
+      },
+      {
+        "command": "latexComfort.toggleUnderline",
+        "title": "Toggle Underline",
+        "category": "LaTeX Comfort"
+      },
+      {
+        "command": "latexComfort.toggleInlineMath",
+        "title": "Toggle Inline Math",
+        "category": "LaTeX Comfort"
+      },
+      {
+        "command": "latexComfort.toggleDisplayMath",
+        "title": "Toggle Display Math",
+        "category": "LaTeX Comfort"
+      },
+      {
+        "command": "latexComfort.toggleEquation",
+        "title": "Toggle Equation Environment",
+        "category": "LaTeX Comfort"
+      },
+      {
+        "command": "latexComfort.toggleItemize",
+        "title": "Toggle Itemize Environment",
+        "category": "LaTeX Comfort"
+      },
+      {
+        "command": "latexComfort.toggleEnumerate",
+        "title": "Toggle Enumerate Environment",
+        "category": "LaTeX Comfort"
+      },
+      {
+        "command": "latexComfort.toggleQuote",
+        "title": "Toggle Quote Environment",
+        "category": "LaTeX Comfort"
+      },
+      {
+        "command": "latexComfort.toggleComment",
+        "title": "Toggle Comment Environment",
+        "category": "LaTeX Comfort"
+      },
+      {
+        "command": "latexComfort.toggleIffalse",
+        "title": "Toggle \\iffalse Block",
+        "category": "LaTeX Comfort"
+      },
+      {
+        "command": "latexComfort.insertSymbol",
+        "title": "Insert Math Symbol\u2026",
+        "category": "LaTeX Comfort"
+      },
+      {
+        "command": "latexComfort.nextCompileProblem",
+        "title": "Next Compile Problem",
+        "category": "LaTeX Comfort"
+      },
+      {
+        "command": "latexComfort.previousCompileProblem",
+        "title": "Previous Compile Problem",
         "category": "LaTeX Comfort"
       },
       {
@@ -97,6 +169,22 @@
         "when": "editorTextFocus && !editorReadOnly && editorHasSelection && editorLangId =~ /^(latex|tex|latex-expl3)$/ && config.latexComfort.keybindings.emphasisOnSelection"
       }
     ],
+    "snippets": [
+      {
+        "language": "latex",
+        "path": "./snippets/latex.json"
+      },
+      {
+        "language": "tex",
+        "path": "./snippets/latex.json"
+      }
+    ],
+    "submenus": [
+      {
+        "id": "latexComfort.actions",
+        "label": "LaTeX Comfort"
+      }
+    ],
     "configuration": {
       "title": "LaTeX Comfort",
       "properties": {
@@ -119,6 +207,11 @@
           "type": "boolean",
           "default": true,
           "description": "Use Cmd+I / Ctrl+I to toggle \\emph or \\textit on a LaTeX selection. With no selection, the key keeps its normal VS Code action."
+        },
+        "latexComfort.status.wordCount.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show the live word count for the active LaTeX file or selection."
         }
       }
     },
@@ -138,6 +231,66 @@
       }
     ],
     "menus": {
+      "editor/context": [
+        {
+          "submenu": "latexComfort.actions",
+          "when": "editorLangId =~ /^(latex|tex|latex-expl3)$/",
+          "group": "navigation@90"
+        }
+      ],
+      "latexComfort.actions": [
+        {
+          "command": "latexComfort.toggleBold",
+          "when": "editorHasSelection",
+          "group": "1_format@1"
+        },
+        {
+          "command": "latexComfort.toggleEmphasis",
+          "when": "editorHasSelection",
+          "group": "1_format@2"
+        },
+        {
+          "command": "latexComfort.toggleUnderline",
+          "when": "editorHasSelection",
+          "group": "1_format@3"
+        },
+        {
+          "command": "latexComfort.toggleInlineMath",
+          "group": "2_math@1"
+        },
+        {
+          "command": "latexComfort.toggleDisplayMath",
+          "group": "2_math@2"
+        },
+        {
+          "command": "latexComfort.insertSymbol",
+          "group": "2_math@3"
+        },
+        {
+          "command": "latexComfort.toggleEquation",
+          "group": "3_environment@1"
+        },
+        {
+          "command": "latexComfort.toggleItemize",
+          "group": "3_environment@2"
+        },
+        {
+          "command": "latexComfort.toggleEnumerate",
+          "group": "3_environment@3"
+        },
+        {
+          "command": "latexComfort.toggleQuote",
+          "group": "3_environment@4"
+        },
+        {
+          "command": "latexComfort.toggleComment",
+          "group": "3_environment@5"
+        },
+        {
+          "command": "latexComfort.toggleIffalse",
+          "group": "4_comment@1"
+        }
+      ],
       "view/title": [
         {
           "command": "latexComfort.papers.add",

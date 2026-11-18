@@ -8,16 +8,27 @@
 
 import { summarizeCompileProblems, type CompileProblem } from "./model";
 
+function countLabel(count: number, singular: string, plural: string): string {
+  return `${count} ${count === 1 ? singular : plural}`;
+}
+
 export function compileProblemStatus(problems: readonly CompileProblem[]): {
   text: string;
   tooltip: string;
 } | null {
-  const { errors, files } = summarizeCompileProblems(problems);
-  if (errors === 0) return null;
-  const errorWord = errors === 1 ? "error" : "errors";
-  const fileWord = files === 1 ? "file" : "files";
+  const { errors, warnings, files } = summarizeCompileProblems(problems);
+  if (errors === 0 && warnings === 0) return null;
+  const counts = [
+    errors ? countLabel(errors, "error", "errors") : "",
+    warnings ? countLabel(warnings, "warning", "warnings") : "",
+  ].filter(Boolean);
+  const text = [
+    errors ? `$(error) ${errors}` : "",
+    warnings ? `$(warning) ${warnings}` : "",
+  ].filter(Boolean).join(" ");
+  const fileLabel = countLabel(files, "file", "files");
   return {
-    text: `$(error) ${errors} LaTeX ${errorWord}`,
-    tooltip: `${errors} ${errorWord} in ${files} ${fileWord}. Click to show compile problems.`,
+    text,
+    tooltip: `${counts.join(" and ")} in ${fileLabel}. Click to show compile problems.`,
   };
 }

@@ -1,0 +1,133 @@
+{
+  "Section": {
+    "prefix": "/section",
+    "body": ["\\section{${1:title}}"],
+    "description": "LaTeX section"
+  },
+  "Subsection": {
+    "prefix": "/subsection",
+    "body": ["\\subsection{${1:title}}"],
+    "description": "LaTeX subsection"
+  },
+  "Itemize": {
+    "prefix": "/itemize",
+    "body": [
+      "\\begin{itemize}",
+      "\t\\item ${1:${TM_SELECTED_TEXT:item}}",
+      "\\end{itemize}"
+    ],
+    "description": "Bulleted list"
+  },
+  "Enumerate": {
+    "prefix": "/enumerate",
+    "body": [
+      "\\begin{enumerate}",
+      "\t\\item ${1:${TM_SELECTED_TEXT:item}}",
+      "\\end{enumerate}"
+    ],
+    "description": "Numbered list"
+  },
+  "Equation": {
+    "prefix": "/equation",
+    "body": [
+      "\\begin{equation}",
+      "\t${1:${TM_SELECTED_TEXT}}",
+      "\\end{equation}"
+    ],
+    "description": "Numbered equation"
+  },
+  "Align": {
+    "prefix": "/align",
+    "body": [
+      "\\begin{align}",
+      "\t${1:${TM_SELECTED_TEXT}}",
+      "\\end{align}"
+    ],
+    "description": "Aligned equations"
+  },
+  "Figure": {
+    "prefix": "/figure",
+    "body": [
+      "\\begin{figure}[htbp]",
+      "\t\\centering",
+      "\t\\includegraphics[width=${1:0.8}\\textwidth]{${2:file}}",
+      "\t\\caption{${3:caption}}",
+      "\t\\label{fig:${4:label}}",
+      "\\end{figure}"
+    ],
+    "description": "Figure with image, caption and label"
+  },
+  "Table": {
+    "prefix": "/table",
+    "body": [
+      "\\begin{table}[htbp]",
+      "\t\\centering",
+      "\t\\caption{${1:caption}}",
+      "\t\\label{tab:${2:label}}",
+      "\t\\begin{tabular}{${3:ll}}",
+      "\t\t${4:content}",
+      "\t\\end{tabular}",
+      "\\end{table}"
+    ],
+    "description": "Table with tabular"
+  },
+  "Item": {
+    "prefix": "/item",
+    "body": ["\\item ${1:${TM_SELECTED_TEXT:item}}"],
+    "description": "List item"
+  },
+  "Fraction": {
+    "prefix": "/frac",
+    "body": ["\\frac{${1:numerator}}{${2:denominator}}"],
+    "description": "Fraction"
+  },
+  "Bold": {
+    "prefix": "/bold",
+    "body": ["\\textbf{${1:${TM_SELECTED_TEXT:text}}}"],
+    "description": "Bold text"
+  },
+  "Italic": {
+    "prefix": "/italic",
+    "body": ["\\emph{${1:${TM_SELECTED_TEXT:text}}}"],
+    "description": "Emphasized text"
+  },
+  "Label": {
+    "prefix": "/label",
+    "body": ["\\label{${1:label}}"],
+    "description": "Cross-reference label"
+  },
+  "Reference": {
+    "prefix": "/ref",
+    "body": ["\\ref{${1:label}}"],
+    "description": "Reference to a label"
+  },
+  "Citation": {
+    "prefix": "/cite",
+    "body": ["\\cite{${1:key}}"],
+    "description": "Citation"
+  },
+  "Usepackage": {
+    "prefix": "/usepackage",
+    "body": ["\\usepackage{${1:package}}"],
+    "description": "Load a package"
+  },
+  "Environment": {
+    "prefix": "/env",
+    "body": [
+      "\\begin{${1:environment}}",
+      "\t${2:${TM_SELECTED_TEXT:content}}",
+      "\\end{${1:environment}}"
+    ],
+    "description": "Generic environment"
+  },
+  "Inline math": {
+    "prefix": "/math",
+    "body": ["\\$${1:${TM_SELECTED_TEXT}}\\$"],
+    "description": "Inline math"
+  },
+  "Display math": {
+    "prefix": "/display",
+    "body": ["\\[", "\t${1:${TM_SELECTED_TEXT}}", "\\]"],
+    "description": "Display math"
+  }
+}

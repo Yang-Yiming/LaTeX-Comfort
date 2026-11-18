@@ -8,11 +8,14 @@
 
 import * as vscode from "vscode";
 import { collectCompileProblems, type CompileProblem } from "./model";
+import { cycleProblemIndex } from "./navigation";
 import { compileProblemRows } from "./picker";
 import { compileProblemStatus } from "./status";
 import { diagnosticToProblemInput } from "./vscode-adapter";
 
 export const SHOW_COMPILE_PROBLEMS_COMMAND = "latexComfort.showCompileProblems";
+export const NEXT_COMPILE_PROBLEM_COMMAND = "latexComfort.nextCompileProblem";
+export const PREVIOUS_COMPILE_PROBLEM_COMMAND = "latexComfort.previousCompileProblem";
 
 type ProblemQuickPickItem = vscode.QuickPickItem & { problem?: CompileProblem };
 
@@ -23,6 +26,7 @@ export class CompileProblemsController implements vscode.Disposable {
   );
   private refreshTimer: ReturnType<typeof setTimeout> | undefined;
   private problems: CompileProblem[] = [];
+  private currentProblem = -1;
 
   constructor() {
     this.statusBar.command = SHOW_COMPILE_PROBLEMS_COMMAND;
@@ -37,7 +41,16 @@ export class CompileProblemsController implements vscode.Disposable {
         SHOW_COMPILE_PROBLEMS_COMMAND,
         () => void this.show(),
       ),
+      vscode.commands.registerCommand(
+        NEXT_COMPILE_PROBLEM_COMMAND,
+        () => void this.move(1),
+      ),
+      vscode.commands.registerCommand(
+        PREVIOUS_COMPILE_PROBLEM_COMMAND,
+        () => void this.move(-1),
+      ),
       vscode.languages.onDidChangeDiagnostics(() => this.scheduleRefresh()),
+      vscode.window.onDidChangeActiveTextEditor(() => this.scheduleRefresh()),
     ];
   }
 
@@ -55,9 +68,16 @@ export class CompileProblemsController implements vscode.Disposable {
   }
 
   private refresh(): void {
+    const previousCount = this.problems.length;
+    const active = vscode.window.activeTextEditor;
+    const activeFolder = active && vscode.workspace.getWorkspaceFolder(active.document.uri);
+    const diagnostics = vscode.languages.getDiagnostics().filter(([uri]) => {
+      if (!activeFolder) return true;
+      return vscode.workspace.getWorkspaceFolder(uri)?.uri.toString() === activeFolder.uri.toString();
+    });
     this.problems = collectCompileProblems(
-      vscode.languages.getDiagnostics().flatMap(([uri, diagnostics]) =>
-        diagnostics.map((diagnostic) => diagnosticToProblemInput(
+      diagnostics.flatMap(([uri, items]) =>
+        items.map((diagnostic) => diagnosticToProblemInput(
           uri.toString(),
           vscode.workspace.asRelativePath(uri, false),
           diagnostic,
@@ -65,6 +85,9 @@ export class CompileProblemsController implements vscode.Disposable {
       ),
     );
 
+    if (this.currentProblem >= this.problems.length || this.problems.length !== previousCount) {
+      this.currentProblem = -1;
+    }
     const status = compileProblemStatus(this.problems);
     if (!status) {
       this.statusBar.hide();
@@ -77,7 +100,7 @@ export class CompileProblemsController implements vscode.Disposable {
 
   private async show(): Promise<void> {
     if (this.problems.length === 0) {
-      void vscode.window.showInformationMessage("No LaTeX compile errors found.");
+      void vscode.window.showInformationMessage("No LaTeX compile problems found.");
       return;
     }
 
@@ -88,21 +111,34 @@ export class CompileProblemsController implements vscode.Disposable {
             label: row.label,
             description: row.description,
             detail: row.problem.source ? `Source: ${row.problem.source}` : undefined,
-            iconPath: new vscode.ThemeIcon(
-              "error",
-              new vscode.ThemeColor("errorForeground"),
-            ),
+            iconPath: row.problem.severity === "error"
+              ? new vscode.ThemeIcon("error", new vscode.ThemeColor("errorForeground"))
+              : new vscode.ThemeIcon("warning", new vscode.ThemeColor("editorWarning.foreground")),
             problem: row.problem,
           },
     );
     const status = compileProblemStatus(this.problems);
     const picked = await vscode.window.showQuickPick(items, {
       title: "LaTeX Compile Problems",
-      placeHolder: status?.tooltip ?? "Select an error to jump to its source",
+      placeHolder: status?.tooltip ?? "Select a problem to jump to its source",
       matchOnDescription: true,
       matchOnDetail: true,
     });
-    if (picked?.problem) await this.open(picked.problem);
+    if (picked?.problem) {
+      this.currentProblem = this.problems.indexOf(picked.problem);
+      await this.open(picked.problem);
+    }
+  }
+
+  private async move(delta: number): Promise<void> {
+    this.refresh();
+    if (this.problems.length === 0) {
+      void vscode.window.showInformationMessage("No LaTeX compile problems found.");
+      return;
+    }
+    this.currentProblem = cycleProblemIndex(this.problems.length, this.currentProblem, delta);
+    const problem = this.problems[this.currentProblem];
+    if (problem) await this.open(problem);
   }
 
   private async open(problem: CompileProblem): Promise<void> {

@@ -20,7 +20,7 @@ const problem = (overrides: Partial<CompileProblemInput> = {}): CompileProblemIn
 });
 
 describe("compile problem model", () => {
-  it("keeps only LaTeX errors from project source files", () => {
+  it("keeps LaTeX errors and warnings from project source files", () => {
     const problems = collectCompileProblems([
       problem(),
       problem({ severity: "warning", message: "Overfull hbox" }),
@@ -29,9 +29,10 @@ describe("compile problem model", () => {
       problem({ uri: "file:///workspace/paper/refs.bib", fileLabel: "paper/refs.bib" }),
     ]);
 
-    expect(problems.map((item) => item.fileLabel)).toEqual([
-      "paper/main.tex",
-      "paper/refs.bib",
+    expect(problems.map((item) => `${item.fileLabel}:${item.severity}`)).toEqual([
+      "paper/main.tex:error",
+      "paper/main.tex:warning",
+      "paper/refs.bib:error",
     ]);
   });
 
@@ -67,13 +68,14 @@ describe("compile problem model", () => {
     ]);
   });
 
-  it("counts errors and affected files for the status bar", () => {
+  it("counts errors, warnings and affected files for the status bar", () => {
     const problems = collectCompileProblems([
       problem(),
       problem({ range: { start: { line: 7, character: 0 }, end: { line: 7, character: 1 } } }),
+      problem({ severity: "warning", message: "Overfull hbox" }),
       problem({ uri: "file:///workspace/paper/chapters/intro.tex", fileLabel: "paper/chapters/intro.tex" }),
     ]);
 
-    expect(summarizeCompileProblems(problems)).toEqual({ errors: 3, files: 2 });
+    expect(summarizeCompileProblems(problems)).toEqual({ errors: 3, warnings: 1, files: 2 });
   });
 });

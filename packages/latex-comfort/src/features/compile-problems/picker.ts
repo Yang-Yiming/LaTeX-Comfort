@@ -25,7 +25,7 @@ export function compileProblemRows(
     ...group.problems.map((problem) => ({
       kind: "problem" as const,
       label: problem.message,
-      description: `line ${problem.range.start.line + 1}, column ${problem.range.start.character + 1}`,
+      description: `${problem.severity} · line ${problem.range.start.line + 1}, column ${problem.range.start.character + 1}`,
       problem,
     })),
   ]);

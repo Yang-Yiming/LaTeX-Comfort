@@ -25,7 +25,7 @@ describe("compile problem picker rows", () => {
       {
         kind: "problem",
         label: "Undefined control sequence",
-        description: "line 5, column 3",
+        description: "error · line 5, column 3",
         problem,
       },
     ]);

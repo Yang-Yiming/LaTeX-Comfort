@@ -1,5 +1,5 @@
 export type OffsetRange = { start: number; end: number };
-export type InlineFormat = "bold" | "emphasis";
+export type InlineFormat = "bold" | "emphasis" | "underline";
 
 export type TextEdit = { start: number; end: number; insert: string };
 
@@ -17,6 +17,7 @@ type CommandGroup = {
 const COMMANDS: Record<InlineFormat, { write: string; reads: readonly string[] }> = {
   bold: { write: "textbf", reads: ["textbf"] },
   emphasis: { write: "emph", reads: ["emph", "textit"] },
+  underline: { write: "underline", reads: ["underline"] },
 };
 
 function commentedAt(source: string, offset: number): boolean {

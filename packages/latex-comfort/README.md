@@ -4,10 +4,17 @@ Core quality-of-life improvements for LaTeX writing in VS Code.
 
 ## Features
 
-- Compile-problem status bar and Quick Pick navigation.
+- Contextual bold and emphasis toggles for LaTeX selections.
+- Math, environment, comment and `\iffalse` toggles through the command palette
+  and the editor's **LaTeX Comfort** context menu.
+- Searchable math-symbol palette.
+- `/<name>` snippets for common sections, environments, figures, tables,
+  citations and formatting commands.
+- Live word count for the active file or selection.
+- Compile-problem status bar and Quick Pick navigation for errors and warnings,
+  including next/previous problem commands.
 - Project-scoped Papers view backed by the project `.bib` file.
 - Add one paper by DOI, arXiv id, title or BibTeX, then insert `\cite{key}`.
-- Contextual bold and emphasis toggles for LaTeX selections.
 
 ## Formatting shortcuts
 
@@ -24,6 +31,7 @@ shortcuts can be disabled independently:
 
 - `latexComfort.keybindings.boldOnSelection`
 - `latexComfort.keybindings.emphasisOnSelection`
+- `latexComfort.status.wordCount.enabled`
 
 The package also exports the stable selection-context API used by the optional
 **LaTeX Comfort AI** companion.

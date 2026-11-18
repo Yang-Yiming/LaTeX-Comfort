@@ -15,26 +15,38 @@ const problem = (overrides: Partial<CompileProblemInput> = {}): CompileProblemIn
 });
 
 describe("compile problem status", () => {
-  it("stays hidden when there are no errors", () => {
+  it("stays hidden when there are no problems", () => {
     expect(compileProblemStatus([])).toBeNull();
   });
 
   it("uses singular wording for one error in one file", () => {
     expect(compileProblemStatus(collectCompileProblems([problem()]))).toEqual({
-      text: "$(error) 1 LaTeX error",
+      text: "$(error) 1",
       tooltip: "1 error in 1 file. Click to show compile problems.",
     });
   });
 
-  it("uses plural wording and counts affected files", () => {
+  it("shows errors and warnings together", () => {
     const problems = collectCompileProblems([
       problem(),
+      problem({ severity: "warning", message: "Overfull hbox" }),
       problem({ uri: "file:///workspace/paper/intro.tex", fileLabel: "paper/intro.tex" }),
     ]);
 
     expect(compileProblemStatus(problems)).toEqual({
-      text: "$(error) 2 LaTeX errors",
-      tooltip: "2 errors in 2 files. Click to show compile problems.",
+      text: "$(error) 2 $(warning) 1",
+      tooltip: "2 errors and 1 warning in 2 files. Click to show compile problems.",
+    });
+  });
+
+  it("shows warnings even when there are no errors", () => {
+    const problems = collectCompileProblems([
+      problem({ severity: "warning", message: "Overfull hbox" }),
+    ]);
+
+    expect(compileProblemStatus(problems)).toEqual({
+      text: "$(warning) 1",
+      tooltip: "1 warning in 1 file. Click to show compile problems.",
     });
   });
 });

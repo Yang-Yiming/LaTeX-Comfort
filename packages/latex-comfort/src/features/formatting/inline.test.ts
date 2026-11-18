@@ -39,6 +39,15 @@ describe("toggleLatexInline", () => {
     expect(result.selections).toEqual([selection(2, 7)]);
   });
 
+  it("supports underline toggling", () => {
+    const source = "word";
+    const wrapped = toggleLatexInline(source, [selection(0, 4)], "underline");
+    expect(textAfter(source, wrapped)).toBe("\\underline{word}");
+    expect(toggleLatexInline("\\underline{word}", [selection(11, 15)], "underline")).toMatchObject({
+      selections: [selection(0, 4)],
+    });
+  });
+
   it("recognises textit as emphasis and writes emph when adding it", () => {
     const removed = toggleLatexInline("A \\textit{word} B", [selection(10, 14)], "emphasis");
     expect(textAfter("A \\textit{word} B", removed)).toBe("A word B");
