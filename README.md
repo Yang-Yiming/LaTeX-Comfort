@@ -2,6 +2,8 @@
 
 Quality-of-life improvements for LaTeX writing in VS Code.
 
+LaTeX Comfort is designed to work alongside **LaTeX Workshop**: build, PDF preview, SyncTeX and LaTeX Workshop's existing providers stay in place. LaTeX Comfort remains usable without LaTeX Workshop.
+
 This repository contains two extensions and one installation bundle:
 
 - **LaTeX Comfort** (`latex-comfort`) — core LaTeX utilities.

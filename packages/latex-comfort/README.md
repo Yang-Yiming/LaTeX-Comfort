@@ -2,6 +2,10 @@
 
 Core quality-of-life improvements for LaTeX writing in VS Code.
 
+> Works alongside **LaTeX Workshop**. LaTeX Comfort adds editing, navigation,
+> status and workflow refinements while leaving build, PDF preview, SyncTeX and
+> LaTeX Workshop's existing providers in place. It can also be used without it.
+
 ## Features
 
 - Contextual bold and emphasis toggles for LaTeX selections.
