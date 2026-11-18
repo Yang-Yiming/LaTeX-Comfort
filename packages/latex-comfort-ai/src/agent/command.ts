@@ -1,7 +1,10 @@
 import { getAgentDefinition } from "./definitions";
 import type {
+  AgentAuthDecision,
+  AgentAuthRequest,
   AgentEvent,
   AgentId,
+  AgentModelSelection,
   AgentPermissionRequest,
   AgentRunRequest,
   AgentSettings,
@@ -20,6 +23,11 @@ export interface AgentCommandDependencies {
   workspaceDirectory(): string | undefined;
   activeFileDirectory(): string | undefined;
   requestPermission(request: AgentPermissionRequest): Promise<string | undefined>;
+  selectModel?(
+    agentId: AgentId,
+    selection: AgentModelSelection,
+  ): Promise<string | undefined>;
+  authenticate?(request: AgentAuthRequest): Promise<AgentAuthDecision>;
   withCancellation(
     task: (signal: AbortSignal) => Promise<void>,
   ): Promise<void>;
@@ -77,6 +85,10 @@ export async function runAgentCommand(
         signal,
         onEvent: (event) => writeEvent(deps.output, event),
         requestPermission: deps.requestPermission,
+        ...(deps.selectModel
+          ? { selectModel: (selection) => deps.selectModel!(agentId, selection) }
+          : {}),
+        ...(deps.authenticate ? { authenticate: deps.authenticate } : {}),
       }),
     );
   } catch (error) {

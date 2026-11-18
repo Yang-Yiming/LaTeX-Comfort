@@ -109,3 +109,25 @@
 - [x] Run the full `pnpm test`.
 - [x] Manually smoke test `opencode acp` if available, without sending model requests where possible.
 - [x] Commit `test: cover ACP process integration`.
+
+
+### Task 5: ACP authentication and model selection
+
+**Files:**
+- Modify: `packages/latex-comfort-ai/src/agent/acp-session.ts`
+- Modify: `packages/latex-comfort-ai/src/agent/command.ts`
+- Modify: `packages/latex-comfort-ai/src/commands.ts`
+- Modify: `packages/latex-comfort-ai/src/agent/types.ts`
+- Test: `packages/latex-comfort-ai/src/agent/acp-session.test.ts`
+
+**Interfaces:**
+- Produces: `AgentModelSelection`, `AgentAuthMethod`, `AgentAuthRequest`, `AgentAuthDecision`.
+- `runAcpSession` selects a model through `session/set_config_option` and retries one auth-required operation after authentication.
+
+- [x] Write failing tests for model selection and auth-required prompt retry.
+- [x] Run the focused tests and confirm failure.
+- [x] Implement `auth.terminal` capability advertisement, auth method mapping, and auth retry.
+- [x] Implement model config-option parsing, picker callback, and `session/set_config_option`.
+- [x] Add optional `opencodeModel` and `codexModel` settings.
+- [x] Run focused tests and typecheck; confirm pass.
+- [x] Verify a real OpenCode ACP session can select `opencode/deepseek-v4.1-flash-free` and return a prompt response.

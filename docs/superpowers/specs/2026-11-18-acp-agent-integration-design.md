@@ -12,8 +12,9 @@ without replacing the existing selection-edit provider or implementing a new
 agent harness.
 
 The first release is intentionally transport-first: one command, one prompt,
-streamed output, cancellation, and basic permission prompts. A richer agent
-panel is a later layer over the same session events.
+streamed output, cancellation, ACP authentication, model selection, and basic
+permission prompts. A richer agent panel is a later layer over the same session
+events.
 
 ## Product Decisions
 
@@ -22,7 +23,10 @@ panel is a later layer over the same session events.
 - Use one generic ACP client for both agents.
 - Keep the existing `EditProvider` and diff-review flow unchanged.
 - Defer chat UI, conversation history, resumable sessions, checkpoints,
-  multi-agent runs, model pickers, and agent edit review integration.
+  multi-agent runs, a persistent settings/model panel, and agent edit review
+  integration.
+- Select a model per run from the ACP `session/new` config options.
+- Handle ACP authentication methods when the agent reports auth-required.
 - Provide a minimal usable UI now: Command Palette entry, agent picker, prompt
   input, OutputChannel stream, progress notification, and cancellation.
 
@@ -127,10 +131,14 @@ Flow:
    the active file's directory is used. If neither exists, show an error.
 4. Start a VS Code progress notification and append output to a dedicated
    `LaTeX Comfort Agent` OutputChannel.
-5. Stream text, thinking, and tool status to the OutputChannel.
-6. Report the final result in the progress notification.
-7. Cancellation sends ACP `session/cancel` and disposes the process.
-8. Extension deactivation disposes every live session.
+5. After `session/new`, choose the `model` config option from the ACP-exposed
+   list unless a configured model is set.
+6. If the agent reports auth-required, choose an advertised auth method and
+   either call ACP `authenticate` or run its terminal auth command.
+7. Stream text, thinking, and tool status to the OutputChannel.
+8. Report the final result in the progress notification.
+9. Cancellation sends ACP `session/cancel` and disposes the process.
+10. Extension deactivation disposes every live session.
 
 The command is registered only in `latex-comfort-ai`; no webview is added in
 this release.
@@ -169,6 +177,8 @@ Add these settings under `latexComfort.ai.agent`:
 - `opencodePath` — default `opencode`.
 - `codexAcpPath` — default `codex-acp`.
 - `codexPath` — default `codex`.
+- `opencodeModel` — optional preferred OpenCode ACP model value.
+- `codexModel` — optional preferred Codex ACP model value.
 
 Paths are passed directly to `child_process.spawn` with `shell: false`.
 
@@ -178,6 +188,7 @@ The first release advertises only the capabilities required for the command:
 
 - text prompts;
 - basic permission requests;
+- terminal authentication methods;
 - no client-side filesystem read/write callbacks;
 - no client-side terminal callbacks;
 - no elicitation UI.
@@ -186,7 +197,9 @@ Agents read and edit the workspace using their own tools. Permission requests
 are surfaced through VS Code notifications. Every advertised permission option
 is shown; a dismissal rejects the request.
 
-Unknown ACP session updates are ignored rather than treated as errors.
+Unknown ACP session updates are ignored rather than treated as errors. The
+client selects models through `session/set_config_option`; it does not copy or
+manage the agent's provider credentials.
 
 ## Security and Lifecycle
 
@@ -241,7 +254,7 @@ fixture covers process-level protocol behavior.
 - Full chat panel or webview.
 - Multi-turn conversation UI.
 - Session persistence or resumption.
-- Model, mode, and permission-profile pickers.
+- A persistent model/mode/provider settings panel.
 - Agent-generated diff review.
 - Automatic bridge installation.
 - Native Codex App Server or OpenCode SDK adapters.
@@ -251,6 +264,10 @@ fixture covers process-level protocol behavior.
 
 - The Command Palette exposes `LaTeX Comfort AI: Run Agent`.
 - Selecting OpenCode runs its installed `opencode acp` server.
+- ACP model options are selectable before prompting, and configured model
+  overrides are applied through `session/set_config_option`.
+- Auth-required responses can invoke an advertised agent auth method or launch
+  the terminal login flow and retry once.
 - Selecting Codex runs `codex-acp` with `CODEX_PATH` pointing at the configured
   Codex executable.
 - Text and tool status stream to the OutputChannel.

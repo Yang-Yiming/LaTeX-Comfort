@@ -8,7 +8,13 @@ import {
 import { runAgentCommand } from "./agent/command";
 import { agentDefinitions } from "./agent/definitions";
 import { runAcpAgent } from "./agent/runner";
-import type { AgentId, AgentSettings } from "./agent/types";
+import type {
+  AgentAuthDecision,
+  AgentAuthRequest,
+  AgentId,
+  AgentModelSelection,
+  AgentSettings,
+} from "./agent/types";
 import { getCoreApi } from "./core-api";
 import {
   readProviderSettings,
@@ -177,6 +183,8 @@ function readAgentSettings(): AgentSettings {
     opencodePath: config.get("opencodePath", "opencode"),
     codexAcpPath: config.get("codexAcpPath", "codex-acp"),
     codexPath: config.get("codexPath", "codex"),
+    opencodeModel: config.get("opencodeModel", ""),
+    codexModel: config.get("codexModel", ""),
   };
 }
 
@@ -187,6 +195,93 @@ function workspaceDirectory(): string | undefined {
 function activeFileDirectory(): string | undefined {
   const uri = vscode.window.activeTextEditor?.document.uri;
   return uri?.scheme === "file" ? path.dirname(uri.fsPath) : undefined;
+}
+
+async function selectAgentModel(
+  agentId: AgentId,
+  selection: AgentModelSelection,
+  settings: AgentSettings,
+): Promise<string | undefined> {
+  const preferred = (
+    agentId === "opencode" ? settings.opencodeModel : settings.codexModel
+  )?.trim();
+  if (preferred) {
+    if (!selection.options.some((option) => option.value === preferred)) {
+      throw new Error(
+        `The configured model "${preferred}" is not offered by ${agentId}. ` +
+          `Clear latexComfort.ai.agent.${agentId}Model or choose an offered model.`,
+      );
+    }
+    return preferred;
+  }
+  if (selection.options.length === 1) return selection.options[0]?.value;
+
+  const picked = await vscode.window.showQuickPick(
+    selection.options.map((option) => ({
+      label: option.label,
+      description:
+        option.value === selection.current ? "Current default" : option.value,
+      detail: option.value === selection.current ? option.value : undefined,
+      value: option.value,
+    })),
+    {
+      title: `LaTeX Comfort AI: ${agentId === "opencode" ? "OpenCode" : "Codex"} Model`,
+      placeHolder: selection.current
+        ? `Current default: ${selection.current}`
+        : "Choose the model for this agent run",
+      matchOnDescription: true,
+      ignoreFocusOut: true,
+    },
+  );
+  return picked?.value;
+}
+
+async function authenticateAgent(
+  request: AgentAuthRequest,
+  settings: AgentSettings,
+): Promise<AgentAuthDecision> {
+  const methods =
+    request.methods.length === 1
+      ? request.methods
+      : await vscode.window.showQuickPick(
+          request.methods.map((method) => ({
+            label: method.label,
+            description: method.description,
+            method,
+          })),
+          {
+            title: "LaTeX Comfort AI: Agent Authentication",
+            placeHolder: "Choose how to sign in",
+            ignoreFocusOut: true,
+          },
+        ).then((picked) => (picked ? [picked.method] : []));
+  const method = methods[0];
+  if (!method) return { type: "cancelled" };
+
+  if (method.type === "terminal") {
+    const definition = agentDefinitions(settings).find(
+      (candidate) => candidate.id === request.agentId,
+    );
+    if (!definition) return { type: "cancelled" };
+    const terminal = vscode.window.createTerminal({
+      name: `${definition.label} Login`,
+      shellPath: definition.command,
+      shellArgs: [...definition.args, ...(method.args ?? [])],
+      env: { ...process.env, ...definition.env, ...method.env },
+    });
+    const closed = new Promise<void>((resolve) => {
+      const subscription = vscode.window.onDidCloseTerminal((candidate) => {
+        if (candidate !== terminal) return;
+        subscription.dispose();
+        resolve();
+      });
+    });
+    terminal.show();
+    await closed;
+    return { type: "completed" };
+  }
+
+  return { type: "agent", methodId: method.id };
 }
 
 async function runAgentFromCommand(output: vscode.OutputChannel): Promise<void> {
@@ -221,6 +316,9 @@ async function runAgentFromCommand(output: vscode.OutputChannel): Promise<void> 
         validateInput: (value) =>
           value.trim() ? undefined : "Enter a task for the agent.",
       }),
+    selectModel: (agentId, selection) =>
+      selectAgentModel(agentId, selection, settings),
+    authenticate: (request) => authenticateAgent(request, settings),
     requestPermission: async (request) => {
       const items = request.options.map((option) => ({
         title: option.label,

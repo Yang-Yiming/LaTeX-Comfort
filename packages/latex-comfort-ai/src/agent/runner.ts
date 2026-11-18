@@ -96,10 +96,13 @@ export async function runAcpAgent(request: AgentRunRequest): Promise<void> {
         Writable.toWeb(child.stdin),
         Readable.toWeb(child.stdout) as ReadableStream<Uint8Array>,
       ),
+      agentId: request.definition.id,
       cwd: request.cwd,
       prompt: request.prompt,
       onEvent: request.onEvent,
       requestPermission: request.requestPermission,
+      ...(request.selectModel ? { selectModel: request.selectModel } : {}),
+      ...(request.authenticate ? { authenticate: request.authenticate } : {}),
       ...(request.signal ? { signal: request.signal } : {}),
     });
   } catch (error) {

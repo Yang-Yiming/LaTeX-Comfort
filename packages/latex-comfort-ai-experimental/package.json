@@ -162,6 +162,16 @@
           "type": "string",
           "default": "codex",
           "description": "Codex CLI executable passed to the ACP bridge through CODEX_PATH."
+        },
+        "latexComfort.ai.agent.opencodeModel": {
+          "type": "string",
+          "default": "",
+          "description": "Preferred OpenCode model value. Leave empty to choose from the ACP model list on each run."
+        },
+        "latexComfort.ai.agent.codexModel": {
+          "type": "string",
+          "default": "",
+          "description": "Preferred Codex model value. Leave empty to choose from the ACP model list on each run."
         }
       }
     }
