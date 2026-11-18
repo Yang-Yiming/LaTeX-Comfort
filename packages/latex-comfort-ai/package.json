@@ -10,8 +10,10 @@
   },
   "main": "./dist/extension.js",
   "activationEvents": [
+    "onCommand:latexComfort.ai.openAgent",
     "onCommand:latexComfort.ai.editSelection",
-    "onCommand:latexComfort.ai.configureProvider"
+    "onCommand:latexComfort.ai.configureProvider",
+    "onCommand:latexComfort.ai.runAgent"
   ],
   "scripts": {
     "build": "node esbuild.mjs",
@@ -19,6 +21,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
+    "@agentclientprotocol/sdk": "2.7.0",
     "@latex-comfort/shared": "workspace:*",
     "highlight.js": "~11.11.2",
     "lowlight": "^3.3.0",
@@ -45,6 +48,11 @@
   "contributes": {
     "commands": [
       {
+        "command": "latexComfort.ai.openAgent",
+        "title": "LaTeX Comfort AI: Open Agent",
+        "category": "LaTeX Comfort AI"
+      },
+      {
         "command": "latexComfort.ai.editSelection",
         "title": "LaTeX Comfort AI: Edit Selection…",
         "category": "LaTeX Comfort AI"
@@ -58,6 +66,11 @@
         "command": "latexComfort.ai.configureReviewSurface",
         "title": "LaTeX Comfort AI: Configure Review Surface",
         "category": "LaTeX Comfort AI"
+      },
+      {
+        "command": "latexComfort.ai.runAgent",
+        "title": "LaTeX Comfort AI: Run Agent",
+        "category": "LaTeX Comfort AI"
       }
     ],
     "menus": {
@@ -70,6 +83,9 @@
       ],
       "commandPalette": [
         {
+          "command": "latexComfort.ai.openAgent"
+        },
+        {
           "command": "latexComfort.ai.editSelection"
         },
         {
@@ -77,6 +93,9 @@
         },
         {
           "command": "latexComfort.ai.configureReviewSurface"
+        },
+        {
+          "command": "latexComfort.ai.runAgent"
         }
       ]
     },
@@ -140,6 +159,31 @@
             "Show the full review card beside the editor. Best for long selections."
           ],
           "markdownDescription": "Where to review AI edits. Run **LaTeX Comfort AI: Configure Review Surface** from the Command Palette for a guided picker.\n\n`auto` keeps short selections inline and opens long reviews beside the editor."
+        },
+        "latexComfort.ai.agent.opencodePath": {
+          "type": "string",
+          "default": "opencode",
+          "description": "OpenCode executable used for ACP agent runs. OpenCode 2 exposes the same `opencode acp` command."
+        },
+        "latexComfort.ai.agent.codexAcpPath": {
+          "type": "string",
+          "default": "codex-acp",
+          "description": "Codex ACP bridge executable. Install it with `npm install -g @agentclientprotocol/codex-acp` if it is not on PATH."
+        },
+        "latexComfort.ai.agent.codexPath": {
+          "type": "string",
+          "default": "codex",
+          "description": "Codex CLI executable passed to the ACP bridge through CODEX_PATH."
+        },
+        "latexComfort.ai.agent.opencodeModel": {
+          "type": "string",
+          "default": "",
+          "description": "Preferred OpenCode model value. Leave empty to choose from the ACP model list on each run."
+        },
+        "latexComfort.ai.agent.codexModel": {
+          "type": "string",
+          "default": "",
+          "description": "Preferred Codex model value. Leave empty to choose from the ACP model list on each run."
         }
       }
     }

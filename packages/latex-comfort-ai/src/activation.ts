@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { COMMANDS, type SelectionContext } from "@latex-comfort/shared";
 import { registerCommands } from "./commands";
+import { registerAgentPanel } from "./agent/register-panel";
 import { readProviderSettings, readReviewPresentation } from "./model/vscode-settings";
 import { NativeInlineSurface } from "./review/native-inline-surface";
 import { PanelSurface } from "./review/panel-surface";
@@ -82,6 +83,7 @@ export function activateLatexComfort(
     ...registerCommands(context, controller, {
       supportsEditorInset: options.editorInset !== undefined,
     }),
+    ...registerAgentPanel(context),
     { dispose: () => controller?.dispose() },
     host,
   );

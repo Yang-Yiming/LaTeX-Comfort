@@ -19,6 +19,10 @@ The adapted material is:
   `packages/latex-comfort-ai/webview/src/InlineDiff.tsx` and
   `packages/latex-comfort-ai/webview/src/theme.css`, adapted from Lattice's
   review-card workflow and visual treatment for a VS Code Webview
+- `packages/latex-comfort-ai/webview/src/AgentView.tsx` and
+  `packages/latex-comfort-ai/webview/src/agent.css`, adapted from Lattice's
+  Agent-panel composition, empty state, conversation surface, composer and
+  tool/permission presentation for a VS Code Webview
 - `packages/latex-comfort/src/features/papers/bibtex.ts`, adapted from
   the BibTeX span parser and value expansion in Lattice's
   `src/papers/bib-document.ts` for read-only bibliography indexing
@@ -49,6 +53,49 @@ Lattice is licensed under the Apache License, Version 2.0 (see LICENSE).
 The full Apache License 2.0 text is in the repository root `LICENSE` and in
 each extension package's `LICENSE` file. The product-wide notice is in
 `NOTICE`; the same file ships with every extension package.
+
+## Synara
+
+LaTeX Comfort includes code and presentation adapted from
+[Synara](https://github.com/Emanuele-web04/synara), the MIT-licensed agent
+runtime that Lattice embeds. The upstream revision used as the reference is
+`a22a21a4be53c751d2d05c79c6b0343c1f2afdc9`.
+
+The adapted material is:
+
+- `packages/latex-comfort-ai/webview/src/AgentView.tsx` and
+  `packages/latex-comfort-ai/webview/src/agent.css`, adapted from Synara's
+  `ChatView`, `ChatTranscriptPane`, `LatticeEmptyThread`, composer surface,
+  detached approval card, model picker and header history menu for a VS Code
+  Webview with ACP session state
+
+Synara's applicable MIT notice follows:
+
+```text
+Synara
+Copyright (c) 2026 T3 Tools Inc.
+Copyright (c) 2026 Emanuele Di Pietro
+
+MIT License
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
 
 ## Lattice licensing boundaries
 

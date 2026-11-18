@@ -1,0 +1,115 @@
+import { useCallback, useEffect, useState } from "react";
+import type {
+  AgentHostToWebviewMessage,
+  AgentUiFileMention,
+  AgentUiSnapshot,
+} from "@latex-comfort/shared";
+import { AgentView } from "./AgentView";
+import { vscode } from "./vscode";
+import "./agent.css";
+
+const INITIAL: AgentUiSnapshot = {
+  revision: 0,
+  threadId: "new-thread",
+  agentId: "opencode",
+  agentLabel: "OpenCode",
+  phase: "starting",
+  title: "New thread",
+  entries: [],
+  configOptions: [],
+  availableCommands: [],
+  promptCapabilities: {
+    image: false,
+    audio: false,
+    embeddedContext: false,
+  },
+  authMethods: [],
+  threads: [],
+  turns: [],
+};
+
+export function AgentApp() {
+  const [snapshot, setSnapshot] = useState<AgentUiSnapshot>(INITIAL);
+  const [fileMentions, setFileMentions] = useState<{
+    requestId: string;
+    files: AgentUiFileMention[];
+  } | null>(null);
+  const searchFiles = useCallback((query: string, requestId: string) => {
+    vscode.postMessage({ type: "agentSearchFiles", query, requestId });
+  }, []);
+
+  useEffect(() => {
+    const onMessage = (event: MessageEvent<AgentHostToWebviewMessage>) => {
+      if (event.data.type === "agentSnapshot") {
+        setSnapshot(event.data.snapshot);
+      } else if (event.data.type === "agentFileMentions") {
+        setFileMentions({
+          requestId: event.data.requestId,
+          files: event.data.files,
+        });
+      }
+    };
+    window.addEventListener("message", onMessage);
+    vscode.postMessage({ type: "agentWebviewReady" });
+    return () => window.removeEventListener("message", onMessage);
+  }, []);
+
+  return (
+    <AgentView
+      snapshot={snapshot}
+      onSend={(text, attachments) =>
+        vscode.postMessage({
+          type: "agentSend",
+          text,
+          ...(attachments && attachments.length > 0 ? { attachments } : {}),
+        })
+      }
+      onCancel={() => vscode.postMessage({ type: "agentCancel" })}
+      onNewThread={() => vscode.postMessage({ type: "agentNewThread" })}
+      onOpenThread={(threadId) =>
+        vscode.postMessage({ type: "agentOpenThread", threadId })
+      }
+      onDeleteThread={(threadId) =>
+        vscode.postMessage({ type: "agentDeleteThread", threadId })
+      }
+      onSelectAgent={(agentId) =>
+        vscode.postMessage({ type: "agentSelectAgent", agentId })
+      }
+      onSelectConfig={(configId, value) =>
+        vscode.postMessage({ type: "agentSelectConfig", configId, value })
+      }
+      onResolvePermission={(permissionId, optionId) =>
+        vscode.postMessage({
+          type: "agentResolvePermission",
+          permissionId,
+          ...(optionId ? { optionId } : {}),
+        })
+      }
+      onAuthenticate={(methodId) =>
+        vscode.postMessage({
+          type: "agentAuthenticate",
+          ...(methodId ? { methodId } : {}),
+        })
+      }
+      onOpenDiff={(turnId, path) =>
+        vscode.postMessage({ type: "agentOpenDiff", turnId, path })
+      }
+      onOpenTurnDiffs={(turnId) =>
+        vscode.postMessage({ type: "agentOpenTurnDiffs", turnId })
+      }
+      onRestoreTurn={(turnId) =>
+        vscode.postMessage({ type: "agentRestoreTurn", turnId })
+      }
+      onOpenLocation={(path, line) =>
+        vscode.postMessage({
+          type: "agentOpenLocation",
+          path,
+          ...(line ? { line } : {}),
+        })
+      }
+      onOpenSettings={() => vscode.postMessage({ type: "agentOpenSettings" })}
+      fileMentions={fileMentions}
+      onSearchFiles={searchFiles}
+    />
+  );
+}

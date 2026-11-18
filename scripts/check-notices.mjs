@@ -16,6 +16,8 @@ const adaptedFiles = [
   "packages/latex-comfort-ai/webview/src/App.tsx",
   "packages/latex-comfort-ai/webview/src/InlineDiff.tsx",
   "packages/latex-comfort-ai/webview/src/theme.css",
+  "packages/latex-comfort-ai/webview/src/AgentView.tsx",
+  "packages/latex-comfort-ai/webview/src/agent.css",
   "packages/latex-comfort/src/features/papers/bibtex.ts",
   "packages/latex-comfort/src/features/papers/model.ts",
   "packages/latex-comfort/src/features/papers/citation-key.ts",
@@ -38,6 +40,12 @@ if (!notice.includes("Apache License, Version 2.0")) {
 }
 if (!notice.includes("eb523a879b10f443b6d6479959eae12750bf168c")) {
   failures.push("NOTICE must record the upstream Lattice revision");
+}
+if (!notice.includes("software adapted from Synara")) {
+  failures.push("NOTICE must retain Synara's attribution");
+}
+if (!notice.includes("a22a21a4be53c751d2d05c79c6b0343c1f2afdc9")) {
+  failures.push("NOTICE must record the upstream Synara revision");
 }
 
 for (const pkg of packages) {

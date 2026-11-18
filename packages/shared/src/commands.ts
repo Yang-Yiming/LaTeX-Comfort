@@ -2,6 +2,8 @@ export const COMMANDS = {
   editSelection: "latexComfort.ai.editSelection",
   configureProvider: "latexComfort.ai.configureProvider",
   configureReviewSurface: "latexComfort.ai.configureReviewSurface",
+  runAgent: "latexComfort.ai.runAgent",
+  openAgent: "latexComfort.ai.openAgent",
 } as const;
 
 export const SECRET_KEYS = {
