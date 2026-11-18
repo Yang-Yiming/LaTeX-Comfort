@@ -1,7 +1,10 @@
-import type { WebviewToHostMessage } from "@latex-comfort/shared";
+import type {
+  AgentWebviewToHostMessage,
+  WebviewToHostMessage,
+} from "@latex-comfort/shared";
 
 type VsCodeApi = {
-  postMessage(message: WebviewToHostMessage): void;
+  postMessage(message: WebviewToHostMessage | AgentWebviewToHostMessage): void;
   getState(): unknown;
   setState(state: unknown): void;
 };

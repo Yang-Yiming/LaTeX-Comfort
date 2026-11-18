@@ -1,4 +1,4 @@
-export type ReviewWebviewSurface = "panel" | "inset";
+export type ReviewWebviewSurface = "panel" | "inset" | "agent";
 
 export function injectWebviewShell(
   raw: string,

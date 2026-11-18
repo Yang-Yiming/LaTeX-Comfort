@@ -2,13 +2,14 @@ import { describe, expect, it } from "vitest";
 import { mapSessionUpdate } from "./acp-events";
 
 describe("mapSessionUpdate", () => {
-  it("maps streamed agent text", () => {
+  it("maps streamed agent text with its message id", () => {
     expect(
       mapSessionUpdate({
         sessionUpdate: "agent_message_chunk",
+        messageId: "message-1",
         content: { type: "text", text: "Hello" },
       }),
-    ).toEqual([{ type: "text", text: "Hello" }]);
+    ).toEqual([{ type: "text", messageId: "message-1", text: "Hello" }]);
   });
 
   it("maps streamed agent thinking", () => {
@@ -20,26 +21,69 @@ describe("mapSessionUpdate", () => {
     ).toEqual([{ type: "thinking", text: "Considering" }]);
   });
 
-  it("maps a new tool call", () => {
+  it("maps a new tool call with stable identity and locations", () => {
     expect(
       mapSessionUpdate({
         sessionUpdate: "tool_call",
         toolCallId: "tool-1",
         title: "Read main.tex",
+        name: "read",
+        kind: "read",
         status: "pending",
+        locations: [{ path: "/workspace/main.tex", line: 12 }],
       }),
-    ).toEqual([{ type: "tool", title: "Read main.tex", status: "pending" }]);
+    ).toEqual([
+      {
+        type: "tool",
+        toolCallId: "tool-1",
+        title: "Read main.tex",
+        name: "read",
+        kind: "read",
+        status: "pending",
+        locations: [{ path: "/workspace/main.tex", line: 12 }],
+      },
+    ]);
   });
 
-  it("maps a tool call update with title and status", () => {
+  it("maps a tool call update without losing its identity", () => {
     expect(
       mapSessionUpdate({
         sessionUpdate: "tool_call_update",
         toolCallId: "tool-1",
-        title: "Read main.tex",
         status: "completed",
       }),
-    ).toEqual([{ type: "tool", title: "Read main.tex", status: "completed" }]);
+    ).toEqual([{ type: "tool", toolCallId: "tool-1", status: "completed" }]);
+  });
+
+  it("maps model config options", () => {
+    expect(
+      mapSessionUpdate({
+        sessionUpdate: "config_option_update",
+        configOptions: [
+          {
+            id: "model",
+            name: "Model",
+            category: "model",
+            type: "select",
+            currentValue: "provider/model",
+            options: [{ value: "provider/model", name: "Model" }],
+          },
+        ],
+      }),
+    ).toEqual([
+      {
+        type: "config",
+        options: [
+          {
+            id: "model",
+            name: "Model",
+            category: "model",
+            currentValue: "provider/model",
+            options: [{ value: "provider/model", label: "Model" }],
+          },
+        ],
+      },
+    ]);
   });
 
   it("maps session notices", () => {
@@ -53,6 +97,7 @@ describe("mapSessionUpdate", () => {
     ).toEqual([
       {
         type: "notice",
+        severity: "warning",
         message: "Network unavailable: The agent will retry.",
       },
     ]);

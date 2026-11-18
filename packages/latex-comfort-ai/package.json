@@ -10,6 +10,7 @@
   },
   "main": "./dist/extension.js",
   "activationEvents": [
+    "onCommand:latexComfort.ai.openAgent",
     "onCommand:latexComfort.ai.editSelection",
     "onCommand:latexComfort.ai.configureProvider",
     "onCommand:latexComfort.ai.runAgent"
@@ -47,8 +48,13 @@
   "contributes": {
     "commands": [
       {
+        "command": "latexComfort.ai.openAgent",
+        "title": "LaTeX Comfort AI: Open Agent",
+        "category": "LaTeX Comfort AI"
+      },
+      {
         "command": "latexComfort.ai.editSelection",
-        "title": "LaTeX Comfort AI: Edit Selection\u2026",
+        "title": "LaTeX Comfort AI: Edit Selection…",
         "category": "LaTeX Comfort AI"
       },
       {
@@ -76,6 +82,9 @@
         }
       ],
       "commandPalette": [
+        {
+          "command": "latexComfort.ai.openAgent"
+        },
         {
           "command": "latexComfort.ai.editSelection"
         },

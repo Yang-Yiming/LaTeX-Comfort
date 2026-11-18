@@ -74,7 +74,12 @@ describe("runAcpSession", () => {
     expect(permissions).toEqual(["Run a test"]);
     expect(events).toEqual([
       { type: "text", text: "Hello" },
-      { type: "tool", title: "Run a test", status: "completed" },
+      {
+        type: "tool",
+        toolCallId: "tool-1",
+        title: "Run a test",
+        status: "completed",
+      },
     ]);
   });
 

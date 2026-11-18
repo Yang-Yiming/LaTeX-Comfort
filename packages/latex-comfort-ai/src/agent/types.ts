@@ -17,11 +17,34 @@ export interface AgentDefinition {
   missingCommandMessage: string;
 }
 
+export interface AgentToolLocation {
+  path: string;
+  line?: number;
+}
+
+export interface AgentConfigOption {
+  id: string;
+  name: string;
+  category?: string;
+  currentValue?: string;
+  options: AgentModelOption[];
+}
+
 export type AgentEvent =
-  | { type: "text"; text: string }
-  | { type: "thinking"; text: string }
-  | { type: "tool"; title: string; status?: string }
-  | { type: "notice"; message: string };
+  | { type: "text"; messageId?: string; text: string }
+  | { type: "thinking"; messageId?: string; text: string }
+  | {
+      type: "tool";
+      toolCallId: string;
+      title?: string;
+      name?: string;
+      kind?: string;
+      status?: string;
+      locations?: AgentToolLocation[];
+      output?: string;
+    }
+  | { type: "notice"; severity?: string; message: string }
+  | { type: "config"; options: AgentConfigOption[] };
 
 export interface AgentRunRequest {
   definition: AgentDefinition;
@@ -35,13 +58,16 @@ export interface AgentRunRequest {
 }
 
 export interface AgentPermissionRequest {
+  toolCallId?: string;
   title: string;
+  locations?: AgentToolLocation[];
   options: AgentPermissionOption[];
 }
 
 export interface AgentPermissionOption {
   id: string;
   label: string;
+  kind?: string;
 }
 
 export interface AgentModelOption {

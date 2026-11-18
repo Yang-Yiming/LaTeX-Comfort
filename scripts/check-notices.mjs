@@ -16,6 +16,8 @@ const adaptedFiles = [
   "packages/latex-comfort-ai/webview/src/App.tsx",
   "packages/latex-comfort-ai/webview/src/InlineDiff.tsx",
   "packages/latex-comfort-ai/webview/src/theme.css",
+  "packages/latex-comfort-ai/webview/src/AgentView.tsx",
+  "packages/latex-comfort-ai/webview/src/agent.css",
   "packages/latex-comfort/src/features/papers/bibtex.ts",
   "packages/latex-comfort/src/features/papers/model.ts",
   "packages/latex-comfort/src/features/papers/citation-key.ts",

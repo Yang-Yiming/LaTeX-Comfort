@@ -19,6 +19,10 @@ The adapted material is:
   `packages/latex-comfort-ai/webview/src/InlineDiff.tsx` and
   `packages/latex-comfort-ai/webview/src/theme.css`, adapted from Lattice's
   review-card workflow and visual treatment for a VS Code Webview
+- `packages/latex-comfort-ai/webview/src/AgentView.tsx` and
+  `packages/latex-comfort-ai/webview/src/agent.css`, adapted from Lattice's
+  Agent-panel composition, empty state, conversation surface, composer and
+  tool/permission presentation for a VS Code Webview
 - `packages/latex-comfort/src/features/papers/bibtex.ts`, adapted from
   the BibTeX span parser and value expansion in Lattice's
   `src/papers/bib-document.ts` for read-only bibliography indexing

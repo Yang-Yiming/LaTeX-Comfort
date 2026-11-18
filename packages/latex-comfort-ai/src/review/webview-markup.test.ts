@@ -15,4 +15,15 @@ describe("injectWebviewShell", () => {
     expect(html).toContain('http-equiv="Content-Security-Policy"');
     expect(html).toContain("padding: 4px 8px 8px 0");
   });
+
+  it("marks the agent webview surface", () => {
+    const html = injectWebviewShell(
+      "<!doctype html><html><head></head><body><div id=\"root\"></div></body></html>",
+      "agent",
+      "vscode-webview://agent",
+      "default-src 'none'",
+    );
+
+    expect(html).toContain('<body data-review-surface="agent">');
+  });
 });
