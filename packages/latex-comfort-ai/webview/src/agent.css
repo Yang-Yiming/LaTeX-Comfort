@@ -1204,7 +1204,7 @@ summary:focus-visible {
 .lattice-composer-pickers {
   min-width: 0;
   flex: 1 1 180px;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .lattice-composer-actions {
@@ -1217,13 +1217,14 @@ summary:focus-visible {
   position: relative;
   min-width: 0;
   flex: 0 1 auto;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .lattice-picker-trigger {
   width: auto;
   max-width: min(180px, 100%);
   min-width: 0;
+  overflow: hidden;
   height: 24px;
   display: inline-flex;
   align-items: center;
