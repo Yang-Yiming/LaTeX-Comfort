@@ -28,6 +28,13 @@ describe("InteractiveAcpSession", () => {
             ],
           },
         ],
+        availableCommands: [
+          {
+            name: "review",
+            description: "Review the current selection",
+            input: { hint: "What should the review focus on?" },
+          },
+        ],
       }))
       .onRequest(acp.methods.agent.session.prompt, async ({ client, params }) => {
         promptCount += 1;
@@ -52,6 +59,13 @@ describe("InteractiveAcpSession", () => {
 
     const started = await session.start();
     expect(started.sessionId).toBe("session-interactive");
+    expect(started.availableCommands).toEqual([
+      {
+        name: "review",
+        description: "Review the current selection",
+        inputHint: "What should the review focus on?",
+      },
+    ]);
     expect(started.configOptions[0]).toEqual({
       id: "model",
       name: "Model",

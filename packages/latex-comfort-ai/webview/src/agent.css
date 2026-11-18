@@ -812,7 +812,76 @@ summary:focus-visible {
 }
 
 .lattice-composer-surface {
+  position: relative;
   padding: 12px 14px 8px;
+}
+
+.lattice-command-menu {
+  position: absolute;
+  z-index: 80;
+  right: 0;
+  bottom: calc(100% + 6px);
+  left: 0;
+  max-height: min(320px, 48vh);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: 4px;
+  border: 1px solid var(--agent-border-strong);
+  border-radius: 14px;
+  background: var(--agent-elevated);
+  color: var(--agent-ink);
+  box-shadow: 0 17px 34px color-mix(in srgb, #000 22%, transparent), 0 2px 7px color-mix(in srgb, #000 10%, transparent);
+}
+
+.lattice-command-option {
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, auto) minmax(0, 1fr);
+  align-items: baseline;
+  gap: 3px 10px;
+  padding: 7px 9px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--agent-ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.lattice-command-option:hover,
+.lattice-command-option[data-active] {
+  background: var(--agent-hover);
+}
+
+.lattice-command-name {
+  color: var(--agent-ink);
+  font-family: var(--agent-code);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 16px;
+}
+
+.lattice-command-description {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--agent-muted);
+  font-size: 11.5px;
+  line-height: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lattice-command-hint {
+  grid-column: 2;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--agent-faint);
+  font-size: 10.5px;
+  line-height: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .lattice-composer-editor {

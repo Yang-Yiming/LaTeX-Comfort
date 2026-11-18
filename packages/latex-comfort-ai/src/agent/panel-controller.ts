@@ -30,6 +30,7 @@ import type {
 import type {
   AgentAuthDecision,
   AgentAuthRequest,
+  AgentCommand,
   AgentConfigOption,
   AgentDefinition,
   AgentEvent,
@@ -42,6 +43,7 @@ export interface AgentRuntime {
   start(): Promise<{
     sessionId: string;
     configOptions: AgentConfigOption[];
+    availableCommands: AgentCommand[];
     authMethods: AgentUiAuthMethod[];
     resumed: boolean;
     capabilities: {
@@ -707,6 +709,10 @@ export class AgentPanelController {
             options: toUiConfigOptions(started.configOptions),
           });
         }
+        this.state = reduceAgentEvent(this.state, {
+          type: "commands",
+          commands: started.availableCommands,
+        });
         this.state = {
           ...setPhase(this.state, "ready"),
           authMethods: started.authMethods,

@@ -1,4 +1,5 @@
 import type {
+  AgentCommand,
   AgentConfigOption,
   AgentEvent,
   AgentToolLocation,
@@ -43,6 +44,30 @@ function modelOptions(value: unknown): AgentModelOption[] {
           typeof entry.name === "string" && entry.name.trim()
             ? entry.name
             : entry.value,
+      },
+    ];
+  });
+}
+
+export function mapAvailableCommands(value: unknown): AgentCommand[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry): AgentCommand[] => {
+    if (
+      !isRecord(entry) ||
+      typeof entry.name !== "string" ||
+      !entry.name.trim() ||
+      typeof entry.description !== "string"
+    ) {
+      return [];
+    }
+    const input = isRecord(entry.input) ? entry.input : undefined;
+    return [
+      {
+        name: entry.name.trim(),
+        description: entry.description.trim(),
+        ...(typeof input?.hint === "string" && input.hint.trim()
+          ? { inputHint: input.hint.trim() }
+          : {}),
       },
     ];
   });
@@ -154,6 +179,8 @@ export function mapSessionUpdate(update: unknown): AgentEvent[] {
     }
     case "config_option_update":
       return [{ type: "config", options: mapConfigOptions(update.configOptions) }];
+    case "available_commands_update":
+      return [{ type: "commands", commands: mapAvailableCommands(update.availableCommands) }];
     case "notice": {
       const title = typeof update.title === "string" ? update.title.trim() : "";
       const description =

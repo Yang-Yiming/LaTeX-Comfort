@@ -21,6 +21,7 @@ import {
 } from "react";
 import type {
   AgentUiAgentId,
+  AgentUiCommand,
   AgentUiConfigOption,
   AgentUiContext,
   AgentUiEntry,
@@ -249,6 +250,42 @@ function contextName(context: AgentUiContext): string {
 
 function contextDetail(context: AgentUiContext): string | null {
   return context.line ? `line ${context.line}` : null;
+}
+
+export function slashCommandQuery(draft: string): string | null {
+  const match = /^\/([^\s]*)$/.exec(draft);
+  return match ? (match[1] ?? "") : null;
+}
+
+function SlashCommandMenu({
+  commands,
+  activeIndex,
+  onSelect,
+}: {
+  commands: AgentUiCommand[];
+  activeIndex: number;
+  onSelect(command: AgentUiCommand): void;
+}) {
+  return (
+    <div className="lattice-command-menu" role="listbox" aria-label="Slash commands">
+      {commands.map((command, index) => (
+        <button
+          type="button"
+          role="option"
+          aria-selected={index === activeIndex}
+          data-active={index === activeIndex || undefined}
+          className="lattice-command-option"
+          key={command.name}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => onSelect(command)}
+        >
+          <span className="lattice-command-name">/{command.name}</span>
+          <span className="lattice-command-description">{command.description}</span>
+          {command.inputHint ? <span className="lattice-command-hint">{command.inputHint}</span> : null}
+        </button>
+      ))}
+    </div>
+  );
 }
 
 function permissionDescription(kind?: string): string | null {
@@ -858,8 +895,55 @@ function AgentComposer({
 }) {
   const busy = snapshot.phase === "running" || snapshot.phase === "waiting_permission" || snapshot.phase === "authentication_required";
   const stop = snapshot.phase === "running" || snapshot.phase === "waiting_permission";
+  const [commandIndex, setCommandIndex] = useState(0);
+  const [commandDismissed, setCommandDismissed] = useState(false);
+  const commandQuery = slashCommandQuery(draft);
+  const filteredCommands = useMemo(() => {
+    const needle = commandQuery?.trim().toLowerCase();
+    if (needle === undefined) return [];
+    return snapshot.availableCommands.filter(
+      (command) =>
+        !needle ||
+        command.name.toLowerCase().includes(needle) ||
+        command.description.toLowerCase().includes(needle),
+    );
+  }, [commandQuery, snapshot.availableCommands]);
+  const commandMenuOpen = !commandDismissed && commandQuery !== null && filteredCommands.length > 0;
+
+  useEffect(() => {
+    setCommandIndex(0);
+  }, [commandQuery]);
+
+  const selectCommand = (command: AgentUiCommand) => {
+    setDraft(`/${command.name} `);
+    setCommandDismissed(true);
+    requestAnimationFrame(() => textareaRef.current?.focus());
+  };
 
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (commandMenuOpen) {
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        setCommandIndex((current) => {
+          const offset = event.key === "ArrowDown" ? 1 : -1;
+          return (current + offset + filteredCommands.length) % filteredCommands.length;
+        });
+        return;
+      }
+      if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+        const command = filteredCommands[commandIndex];
+        if (command) {
+          event.preventDefault();
+          selectCommand(command);
+          return;
+        }
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setCommandDismissed(true);
+        return;
+      }
+    }
     if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;
     event.preventDefault();
     send();
@@ -875,6 +959,13 @@ function AgentComposer({
         ) : null}
         {snapshot.context ? <ContextChip context={snapshot.context} /> : null}
         <div className="lattice-composer-surface">
+          {commandMenuOpen ? (
+            <SlashCommandMenu
+              commands={filteredCommands}
+              activeIndex={commandIndex}
+              onSelect={selectCommand}
+            />
+          ) : null}
           <div className="lattice-composer-editor">
             <textarea
               ref={textareaRef}
@@ -883,7 +974,10 @@ function AgentComposer({
               placeholder="Do anything in Lattice"
               value={draft}
               disabled={snapshot.phase === "authentication_required"}
-              onChange={(event) => setDraft(event.target.value)}
+              onChange={(event) => {
+                setDraft(event.target.value);
+                setCommandDismissed(false);
+              }}
               onKeyDown={onKeyDown}
             />
           </div>

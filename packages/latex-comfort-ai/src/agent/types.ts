@@ -30,6 +30,12 @@ export interface AgentConfigOption {
   options: AgentModelOption[];
 }
 
+export interface AgentCommand {
+  name: string;
+  description: string;
+  inputHint?: string;
+}
+
 export type AgentEvent =
   | { type: "user"; messageId?: string; text: string }
   | { type: "text"; messageId?: string; text: string }
@@ -45,7 +51,8 @@ export type AgentEvent =
       output?: string;
     }
   | { type: "notice"; severity?: string; message: string }
-  | { type: "config"; options: AgentConfigOption[] };
+  | { type: "config"; options: AgentConfigOption[] }
+  | { type: "commands"; commands: AgentCommand[] };
 
 export interface AgentRunRequest {
   definition: AgentDefinition;

@@ -131,6 +131,26 @@ describe("agent panel state", () => {
     });
   });
 
+  it("replaces the available slash commands", () => {
+    let state = createAgentPanelState({
+      agentId: "opencode",
+      agentLabel: "OpenCode",
+      now: () => 35,
+    });
+    state = reduceAgentEvent(state, {
+      type: "commands",
+      commands: [{ name: "review", description: "Review" }],
+    });
+    state = reduceAgentEvent(state, {
+      type: "commands",
+      commands: [{ name: "compact", description: "Compact" }],
+    });
+
+    expect(state.availableCommands).toEqual([
+      { name: "compact", description: "Compact" },
+    ]);
+  });
+
   it("updates model config without losing other options", () => {
     let state = createAgentPanelState({
       agentId: "opencode",

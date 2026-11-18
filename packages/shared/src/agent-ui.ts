@@ -28,6 +28,12 @@ export interface AgentUiConfigOption {
   options: Array<{ value: string; label: string }>;
 }
 
+export interface AgentUiCommand {
+  name: string;
+  description: string;
+  inputHint?: string;
+}
+
 export interface AgentUiAuthMethod {
   id: string;
   label: string;
@@ -137,6 +143,7 @@ export interface AgentUiSnapshot {
   title: string;
   entries: AgentUiEntry[];
   configOptions: AgentUiConfigOption[];
+  availableCommands: AgentUiCommand[];
   currentModel?: string;
   visibleModels?: string[];
   authMethods: AgentUiAuthMethod[];

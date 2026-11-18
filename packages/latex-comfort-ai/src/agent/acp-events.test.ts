@@ -86,6 +86,35 @@ describe("mapSessionUpdate", () => {
     ]);
   });
 
+  it("maps available slash commands", () => {
+    expect(
+      mapSessionUpdate({
+        sessionUpdate: "available_commands_update",
+        availableCommands: [
+          {
+            name: "review",
+            description: "Review the current selection",
+            input: { hint: "What should the review focus on?" },
+          },
+          { name: "compact", description: "Compact the conversation" },
+          { name: "", description: "ignored" },
+        ],
+      }),
+    ).toEqual([
+      {
+        type: "commands",
+        commands: [
+          {
+            name: "review",
+            description: "Review the current selection",
+            inputHint: "What should the review focus on?",
+          },
+          { name: "compact", description: "Compact the conversation" },
+        ],
+      },
+    ]);
+  });
+
   it("maps session notices", () => {
     expect(
       mapSessionUpdate({

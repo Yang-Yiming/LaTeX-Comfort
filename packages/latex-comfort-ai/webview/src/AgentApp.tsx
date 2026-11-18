@@ -16,6 +16,7 @@ const INITIAL: AgentUiSnapshot = {
   title: "New thread",
   entries: [],
   configOptions: [],
+  availableCommands: [],
   authMethods: [],
   threads: [],
   turns: [],

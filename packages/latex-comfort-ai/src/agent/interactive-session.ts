@@ -1,8 +1,9 @@
 import * as acp from "@agentclientprotocol/sdk";
-import { mapConfigOptions, mapSessionUpdate } from "./acp-events";
+import { mapAvailableCommands, mapConfigOptions, mapSessionUpdate } from "./acp-events";
 import type { AgentRemoteSession } from "./history-types";
 import type {
   AgentAuthMethod,
+  AgentCommand,
   AgentConfigOption,
   AgentEvent,
   AgentPermissionRequest,
@@ -36,6 +37,7 @@ export interface InteractiveAcpSessionOptions {
 export interface InteractiveSessionStart {
   sessionId: string;
   configOptions: AgentConfigOption[];
+  availableCommands: AgentCommand[];
   authMethods: AgentAuthMethod[];
   resumed: boolean;
   capabilities: {
@@ -88,6 +90,7 @@ export class InteractiveAcpSession {
   private sessionId: string | undefined;
   private authMethods: AgentAuthMethod[] = [];
   private configOptions: AgentConfigOption[] = [];
+  private availableCommands: AgentCommand[] = [];
   private disposed = false;
   private promptRunning = false;
   private cancelRequested = false;
@@ -111,6 +114,7 @@ export class InteractiveAcpSession {
       return {
         sessionId: this.sessionId,
         configOptions: this.configOptions,
+        availableCommands: this.availableCommands,
         authMethods: this.authMethods,
         resumed: true,
         capabilities: this.capabilities,
@@ -224,6 +228,9 @@ export class InteractiveAcpSession {
       const response = await this.createSession();
       this.sessionId = response.sessionId;
       this.configOptions = mapConfigOptions(response.configOptions);
+      this.availableCommands = mapAvailableCommands(
+        (response as { availableCommands?: unknown }).availableCommands,
+      );
     }
 
     for (const [configId, value] of Object.entries(
@@ -252,6 +259,7 @@ export class InteractiveAcpSession {
     return {
       sessionId: this.sessionId,
       configOptions: this.configOptions,
+      availableCommands: this.availableCommands,
       authMethods: this.authMethods,
       resumed,
       capabilities: this.capabilities,
@@ -401,6 +409,9 @@ export class InteractiveAcpSession {
         },
       );
       this.configOptions = mapConfigOptions(response.configOptions);
+      this.availableCommands = mapAvailableCommands(
+        (response as { availableCommands?: unknown }).availableCommands,
+      );
       return true;
     }
     if (this.capabilities.load) {
@@ -417,6 +428,9 @@ export class InteractiveAcpSession {
           },
         );
         this.configOptions = mapConfigOptions(response.configOptions);
+        this.availableCommands = mapAvailableCommands(
+        (response as { availableCommands?: unknown }).availableCommands,
+      );
         return true;
       } finally {
         this.suppressReplayUpdates = false;
@@ -458,6 +472,7 @@ export class InteractiveAcpSession {
     for (const event of mapSessionUpdate(update)) {
       if (event.type === "user" && !this.replayHistoryUpdates) continue;
       if (event.type === "config") this.configOptions = event.options;
+      if (event.type === "commands") this.availableCommands = event.commands;
       this.options.onEvent(event);
     }
   }

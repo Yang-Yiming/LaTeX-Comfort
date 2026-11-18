@@ -2,7 +2,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { AgentUiSnapshot } from "@latex-comfort/shared";
-import { AgentView } from "./AgentView";
+import { AgentView, slashCommandQuery } from "./AgentView";
 
 function snapshot(overrides: Partial<AgentUiSnapshot> = {}): AgentUiSnapshot {
   return {
@@ -25,6 +25,7 @@ function snapshot(overrides: Partial<AgentUiSnapshot> = {}): AgentUiSnapshot {
         ],
       },
     ],
+    availableCommands: [],
     currentModel: "provider/model",
     authMethods: [],
     threads: [],
@@ -70,6 +71,13 @@ describe("AgentView", () => {
     expect(html).toContain("Model One");
     expect(html).toContain("OpenCode");
     expect(html).toContain("Do anything in Lattice");
+  });
+
+  it("detects slash command queries without treating command arguments as a query", () => {
+    expect(slashCommandQuery("/")).toBe("");
+    expect(slashCommandQuery("/rev")).toBe("rev");
+    expect(slashCommandQuery("/review focus")).toBeNull();
+    expect(slashCommandQuery("please /review")).toBeNull();
   });
 
   it("renders messages, tools, and an inline permission card", () => {

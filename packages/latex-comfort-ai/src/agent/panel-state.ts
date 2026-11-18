@@ -32,6 +32,7 @@ export function createAgentPanelState(
     title: "New thread",
     entries: [],
     configOptions: [],
+    availableCommands: [],
     authMethods: [],
     nextUserId: 1,
     fallbackAssistantId: "assistant-1",
@@ -268,6 +269,8 @@ export function reduceAgentEvent(
         ...(model ? { currentModel: model } : {}),
       });
     }
+    case "commands":
+      return update(state, { availableCommands: event.commands });
   }
 }
 

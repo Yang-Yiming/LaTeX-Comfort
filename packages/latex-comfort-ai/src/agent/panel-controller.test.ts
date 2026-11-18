@@ -18,6 +18,7 @@ function runtime(overrides: Partial<AgentRuntime> = {}): AgentRuntime {
     start: vi.fn(async () => ({
       sessionId: "session-1",
       configOptions: [],
+      availableCommands: [],
       authMethods: [],
       resumed: false,
       capabilities: {
@@ -184,6 +185,7 @@ describe("AgentPanelController", () => {
             ],
           },
         ] satisfies AgentConfigOption[],
+        availableCommands: [],
         authMethods: [] satisfies AgentAuthMethod[],
       })),
       setConfigOption: vi.fn(async () => [
