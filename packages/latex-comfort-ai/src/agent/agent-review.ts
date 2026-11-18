@@ -21,6 +21,7 @@ interface ActiveReview {
   path: string;
   uri: vscode.Uri;
   beforeText: string;
+  afterText: string;
   approved: Set<string>;
   pending: PendingHunk[];
 }
@@ -58,12 +59,14 @@ class AgentTurnReviewCodeLensProvider implements vscode.CodeLensProvider {
       const top = new vscode.Range(0, 0, 0, 0);
       lenses.push(
         new vscode.CodeLens(top, {
-          title: `$(check) Approve all (${this.pending.length})`,
+          title: `$(check-all) Approve all in this file (${this.pending.length})`,
           command: COMMAND.acceptAll,
+          tooltip: "Keep every agent change in this file.",
         }),
         new vscode.CodeLens(top, {
           title: "$(close) Close review",
           command: COMMAND.close,
+          tooltip: "Close this agent review without changing the file.",
         }),
       );
     }
@@ -72,14 +75,16 @@ class AgentTurnReviewCodeLensProvider implements vscode.CodeLensProvider {
       const range = new vscode.Range(line, 0, line, 0);
       lenses.push(
         new vscode.CodeLens(range, {
-          title: "$(check) Approve",
+          title: "$(check) Approve change",
           command: COMMAND.accept,
           arguments: [hunk.id],
+          tooltip: "Keep this agent change.",
         }),
         new vscode.CodeLens(range, {
-          title: "$(x) Reject",
+          title: "$(discard) Reject change",
           command: COMMAND.reject,
           arguments: [hunk.id],
+          tooltip: "Restore the original text for this change.",
         }),
       );
     }
@@ -119,12 +124,23 @@ export class AgentTurnReview implements vscode.Disposable {
   private queueTotal = 0;
   private queueIndex = 0;
   private status: vscode.Disposable | undefined;
+  private applyingEdit = false;
+  private readonly approveAllStatus = vscode.window.createStatusBarItem(
+    vscode.StatusBarAlignment.Right,
+    100,
+  );
+  private readonly closeStatus = vscode.window.createStatusBarItem(
+    vscode.StatusBarAlignment.Right,
+    99,
+  );
 
   constructor(private readonly checkpoints: AgentTurnCheckpointService) {
     this.disposables = [
       this.added,
       this.deleted,
       this.codeLens,
+      this.approveAllStatus,
+      this.closeStatus,
       vscode.languages.registerCodeLensProvider("*", this.codeLens),
       vscode.commands.registerCommand(COMMAND.accept, (id: number) =>
         this.accept(id),
@@ -135,9 +151,19 @@ export class AgentTurnReview implements vscode.Disposable {
       vscode.commands.registerCommand(COMMAND.acceptAll, () => this.acceptAll()),
       vscode.commands.registerCommand(COMMAND.close, () => this.close()),
       vscode.workspace.onDidChangeTextDocument((event) => {
-        if (event.document.uri.toString() === this.active?.uri.toString()) {
-          this.render();
+        const active = this.active;
+        if (
+          !active ||
+          event.document.uri.toString() !== active.uri.toString() ||
+          this.applyingEdit
+        ) {
+          return;
         }
+        if (event.document.getText() !== active.afterText) {
+          this.abandonForExternalEdit(active);
+          return;
+        }
+        this.render();
       }),
       vscode.window.onDidChangeVisibleTextEditors(() => this.render()),
     ];
@@ -215,9 +241,8 @@ export class AgentTurnReview implements vscode.Disposable {
       return false;
     }
     if (document.getText() !== versions.afterText) {
-      await this.checkpoints.openDiff(turnId, filePath);
       void vscode.window.showInformationMessage(
-        "This file changed after the agent turn, so it was opened as a side-by-side diff instead.",
+        "This file changed after the agent turn, so its automatic review was skipped.",
       );
       return false;
     }
@@ -232,6 +257,7 @@ export class AgentTurnReview implements vscode.Disposable {
       path: filePath,
       uri,
       beforeText: versions.beforeText,
+      afterText: versions.afterText,
       approved: this.approvedByFile.get(key) ?? new Set(),
       pending: [],
     };
@@ -287,10 +313,21 @@ export class AgentTurnReview implements vscode.Disposable {
         document.lineAt(last).range.end.character,
       );
     }
+    if (document.getText() !== active.afterText) {
+      this.abandonForExternalEdit(active);
+      return;
+    }
     const edit = new vscode.WorkspaceEdit();
     edit.replace(document.uri, range, hunk.beforeText);
-    const applied = await vscode.workspace.applyEdit(edit);
-    if (applied) this.render();
+    this.applyingEdit = true;
+    try {
+      const applied = await vscode.workspace.applyEdit(edit);
+      if (!applied || this.active !== active) return;
+      active.afterText = document.getText();
+      this.render();
+    } finally {
+      this.applyingEdit = false;
+    }
   }
 
   private close(): void {
@@ -302,9 +339,21 @@ export class AgentTurnReview implements vscode.Disposable {
     this.clearActive();
   }
 
+  private abandonForExternalEdit(active: ActiveReview): void {
+    if (this.active !== active) return;
+    this.clearActive();
+    void vscode.window.setStatusBarMessage(
+      "$(info) Agent review closed because the file changed after the turn.",
+      5000,
+    );
+    if (this.queue.length > 0) void this.openNext();
+  }
+
   private clearActive(): void {
     const active = this.active;
     this.active = undefined;
+    this.approveAllStatus.hide();
+    this.closeStatus.hide();
     if (active) {
       const editor = this.editor(active);
       if (editor) {
@@ -323,8 +372,11 @@ export class AgentTurnReview implements vscode.Disposable {
       return;
     }
     const document = editor.document;
-    const current = document.getText();
-    const all = lineHunks(active.beforeText, current);
+    if (document.getText() !== active.afterText) {
+      this.abandonForExternalEdit(active);
+      return;
+    }
+    const all = lineHunks(active.beforeText, active.afterText);
     const pending = all
       .map((hunk) => ({ hunk, signature: signature(hunk) }))
       .filter((item) => !active.approved.has(item.signature));
@@ -372,6 +424,14 @@ export class AgentTurnReview implements vscode.Disposable {
     editor.setDecorations(this.added, added);
     editor.setDecorations(this.deleted, deleted);
     this.codeLens.set(active.uri.toString(), pending);
+    this.approveAllStatus.text = `$(check-all) Approve all (${pending.length})`;
+    this.approveAllStatus.tooltip = "Keep every agent change in this file.";
+    this.approveAllStatus.command = COMMAND.acceptAll;
+    this.approveAllStatus.show();
+    this.closeStatus.text = "$(close) Close agent review";
+    this.closeStatus.tooltip = "Close this agent review without changing the file.";
+    this.closeStatus.command = COMMAND.close;
+    this.closeStatus.show();
   }
 
   private editor(active: ActiveReview): vscode.TextEditor | undefined {

@@ -23,7 +23,10 @@ resume or load, and ACP-only sessions appear in history as remote threads.
 A turn can open all changed file diffs or restore its files. Files edited after
 the agent turn are skipped instead of overwritten.
 
-A completed turn with file changes opens inline review automatically, with
-per-hunk **Approve** / **Reject** actions. Review advances through every changed
-file in order; closing it stops the queue. If a file changed after the turn, the
-extension falls back to a side-by-side diff so review remains safe.
+Agent replies render as Markdown, including headings, lists, tables, links and
+fenced code blocks. A completed turn with file changes opens inline review
+automatically, with per-hunk **Approve change** / **Reject change** actions and
+an **Approve all** status-bar action. Review advances through every changed file
+in order; closing it stops the queue. If a file changed after the turn, its
+automatic review is skipped so later user edits are never treated as agent
+changes.

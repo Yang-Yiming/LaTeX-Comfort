@@ -19,6 +19,7 @@ import {
   type ReactNode,
   type SVGProps,
 } from "react";
+import { AgentMarkdown } from "./AgentMarkdown";
 import type {
   AgentUiAgentId,
   AgentUiAttachment,
@@ -663,7 +664,8 @@ function AgentEntry({
       return (
         <article className="lattice-message-row is-assistant">
           <div className="lattice-assistant-body" data-streaming={entry.streaming || undefined}>
-            {entry.text}
+            <AgentMarkdown text={entry.text} />
+            {entry.streaming ? <span className="lattice-streaming-caret" aria-hidden="true" /> : null}
           </div>
           <div className="lattice-message-meta">
             <span>{formatTime(entry.at)}</span>
