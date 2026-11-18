@@ -14,6 +14,7 @@ describe("shared contracts", () => {
     expect(COMMANDS.configureProvider).toBe(
       "latexComfort.ai.configureProvider",
     );
+    expect(COMMANDS.runAgent).toBe("latexComfort.ai.runAgent");
     expect(Object.values(COMMANDS).every((id) => id.startsWith("latexComfort.ai."))).toBe(
       true,
     );

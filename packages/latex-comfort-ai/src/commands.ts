@@ -1,9 +1,14 @@
+import * as path from "node:path";
 import * as vscode from "vscode";
 import {
   COMMANDS,
   type EditMode,
   type SelectionContext,
 } from "@latex-comfort/shared";
+import { runAgentCommand } from "./agent/command";
+import { agentDefinitions } from "./agent/definitions";
+import { runAcpAgent } from "./agent/runner";
+import type { AgentId, AgentSettings } from "./agent/types";
 import { getCoreApi } from "./core-api";
 import {
   readProviderSettings,
@@ -166,11 +171,94 @@ export async function configureReviewSurface(
   );
 }
 
+function readAgentSettings(): AgentSettings {
+  const config = vscode.workspace.getConfiguration("latexComfort.ai.agent");
+  return {
+    opencodePath: config.get("opencodePath", "opencode"),
+    codexAcpPath: config.get("codexAcpPath", "codex-acp"),
+    codexPath: config.get("codexPath", "codex"),
+  };
+}
+
+function workspaceDirectory(): string | undefined {
+  return vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+}
+
+function activeFileDirectory(): string | undefined {
+  const uri = vscode.window.activeTextEditor?.document.uri;
+  return uri?.scheme === "file" ? path.dirname(uri.fsPath) : undefined;
+}
+
+async function runAgentFromCommand(output: vscode.OutputChannel): Promise<void> {
+  const settings = readAgentSettings();
+  await runAgentCommand({
+    settings,
+    output,
+    workspaceDirectory,
+    activeFileDirectory,
+    runAgent: runAcpAgent,
+    selectAgent: async () => {
+      const picked = await vscode.window.showQuickPick(
+        agentDefinitions(settings).map((definition) => ({
+          label: definition.label,
+          description: definition.command,
+          id: definition.id,
+        })),
+        {
+          title: "LaTeX Comfort AI: Run Agent",
+          placeHolder: "Choose a local CLI agent",
+          ignoreFocusOut: true,
+        },
+      );
+      return picked?.id satisfies AgentId | undefined;
+    },
+    inputPrompt: async () =>
+      vscode.window.showInputBox({
+        title: "LaTeX Comfort AI: Run Agent",
+        prompt: "What should the agent do in this project?",
+        placeHolder: "e.g. inspect the paper and fix compile errors",
+        ignoreFocusOut: true,
+        validateInput: (value) =>
+          value.trim() ? undefined : "Enter a task for the agent.",
+      }),
+    requestPermission: async (request) => {
+      const items = request.options.map((option) => ({
+        title: option.label,
+        id: option.id,
+      }));
+      const picked = await vscode.window.showWarningMessage(
+        request.title,
+        { modal: true },
+        ...items,
+      );
+      return picked?.id;
+    },
+    withCancellation: async (task) =>
+      vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: "LaTeX Comfort Agent",
+          cancellable: true,
+        },
+        async (_progress, token) => {
+          const abort = new AbortController();
+          const subscription = token.onCancellationRequested(() => abort.abort());
+          try {
+            await task(abort.signal);
+          } finally {
+            subscription.dispose();
+          }
+        },
+      ),
+  });
+}
+
 export function registerCommands(
   context: vscode.ExtensionContext,
   controller: EditController,
   options: { supportsEditorInset: boolean } = { supportsEditorInset: false },
 ): vscode.Disposable[] {
+  const agentOutput = vscode.window.createOutputChannel("LaTeX Comfort Agent");
   return [
     vscode.commands.registerCommand(COMMANDS.editSelection, () =>
       editSelection(controller).catch((error: unknown) => {
@@ -189,5 +277,11 @@ export function registerCommands(
         },
       ),
     ),
+    vscode.commands.registerCommand(COMMANDS.runAgent, () =>
+      runAgentFromCommand(agentOutput).catch((error: unknown) => {
+        void vscode.window.showErrorMessage(messageOf(error));
+      }),
+    ),
+    agentOutput,
   ];
 }
