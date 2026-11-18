@@ -9,8 +9,8 @@ Use `latexComfort.ai.review.presentation` to choose between `auto`, `sidePanel`,
 Run **LaTeX Comfort AI: Open Agent** to try the ACP Agent panel with OpenCode
 or Codex. The panel uses whichever local CLI agent you have installed and
 authenticated, and keeps one ACP session alive across multiple turns. Models
-load before the first prompt; use **Manage visible models** in the model menu to
-curate the selector.
+load before the first prompt; choose one from the compact model menu in the
+composer.
 
 The history button keeps saved threads and records the files changed by each
 turn. Open a changed file from **History → Changes** to review it in VS Code's

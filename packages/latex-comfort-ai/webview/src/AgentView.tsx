@@ -1,19 +1,28 @@
 /*
- * Agent panel composition adapted from Lattice's Agent panel shell
+ * Agent panel composition copied from Lattice's embedded Agent surface
  * (Apache-2.0). Copyright 2026 Leonardo and the Lattice contributors.
  * Licensed under the Apache License, Version 2.0.
- * Modified for LaTeX Comfort: native VS Code webview and ACP session state.
+ *
+ * The DOM structure, starter cards, transcript rows, floating composer,
+ * detached permission card and history popover follow Lattice's Synara
+ * ChatView/LatticeEmptyThread components. The data adapter is ACP.
  */
 import {
+  useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type KeyboardEvent,
+  type ReactNode,
+  type SVGProps,
 } from "react";
 import type {
   AgentUiAgentId,
   AgentUiConfigOption,
+  AgentUiContext,
   AgentUiEntry,
   AgentUiSnapshot,
 } from "@latex-comfort/shared";
@@ -27,7 +36,6 @@ export interface AgentViewProps {
   onDeleteThread(threadId: string): void;
   onSelectAgent(agentId: AgentUiAgentId): void;
   onSelectConfig(configId: string, value: string): void;
-  onSetVisibleModels(values: string[] | null): void;
   onResolvePermission(permissionId: string, optionId?: string): void;
   onAuthenticate(methodId?: string): void;
   onOpenDiff(turnId: string, path: string): void;
@@ -36,33 +44,6 @@ export interface AgentViewProps {
   onOpenLocation(path: string, line?: number): void;
   onOpenSettings(): void;
 }
-
-const SUGGESTIONS = [
-  {
-    title: "Fix compile errors",
-    detail: "Inspect the build and repair the failing LaTeX.",
-    icon: "build",
-    prompt: "Inspect the current project, find the compile errors, and fix them.",
-  },
-  {
-    title: "Review current section",
-    detail: "Check structure, clarity, consistency, and notation.",
-    icon: "review",
-    prompt: "Review the current section for clarity, structure, and consistency.",
-  },
-  {
-    title: "Check citations",
-    detail: "Find missing, unused, or inconsistent references.",
-    icon: "cite",
-    prompt: "Check the project's citations and bibliography for missing or inconsistent entries.",
-  },
-  {
-    title: "Tighten the prose",
-    detail: "Polish the active paragraph without changing its meaning.",
-    icon: "edit",
-    prompt: "Tighten the current paragraph while preserving its meaning and citations.",
-  },
-] as const;
 
 const PHASE_LABEL: Record<AgentUiSnapshot["phase"], string> = {
   idle: "Ready",
@@ -74,13 +55,65 @@ const PHASE_LABEL: Record<AgentUiSnapshot["phase"], string> = {
   failed: "Agent unavailable",
 };
 
+const AGENT_LABEL: Record<AgentUiAgentId, string> = {
+  opencode: "OpenCode",
+  codex: "Codex",
+};
+
+type StarterKind = "polish" | "revise" | "proofread" | "references";
+
+const STARTERS: ReadonlyArray<{
+  kind: StarterKind;
+  title: string;
+  example: string;
+  prompt: string;
+  selectedPrompt: string;
+}> = [
+  {
+    kind: "polish",
+    title: "Polish",
+    example: "Polish this paragraph",
+    prompt:
+      "Polish the paragraph at my cursor for clarity and flow. Keep its meaning, citations and LaTeX commands unchanged.",
+    selectedPrompt:
+      "Polish the selected text for clarity and flow. Keep its meaning, citations and LaTeX commands unchanged.",
+  },
+  {
+    kind: "revise",
+    title: "Revise",
+    example: "Revise to address a review comment",
+    prompt: "Revise the paper to address this review comment: ",
+    selectedPrompt: "Revise the selected text to address this review comment: ",
+  },
+  {
+    kind: "proofread",
+    title: "Proofread",
+    example: "Proofread grammar and spelling",
+    prompt:
+      "Proofread the section at my cursor and fix grammar, spelling and punctuation. Leave the wording otherwise unchanged.",
+    selectedPrompt:
+      "Proofread the selected text and fix grammar, spelling and punctuation. Leave the wording otherwise unchanged.",
+  },
+  {
+    kind: "references",
+    title: "Check references",
+    example: "Check my references",
+    prompt:
+      "Check the citations in this paper: every \\cite key should exist in the bibliography with accurate details, and each cited work should support its claim. Fix what is wrong.",
+    selectedPrompt:
+      "Check the citations in the selected text: every \\cite key should exist in the bibliography with accurate details, and each cited work should support its claim. Fix what is wrong.",
+  },
+];
+
 function Icon({
   name,
-  size = 16,
+  size = 14,
+  className,
 }: {
   name:
     | "plus"
     | "settings"
+    | "history"
     | "chevron"
     | "send"
     | "stop"
@@ -88,639 +121,115 @@ function Icon({
     | "error"
     | "spinner"
     | "file"
-    | "build"
-    | "review"
-    | "cite"
-    | "edit"
     | "tool"
-    | "branch"
     | "search"
     | "close"
-    | "history"
     | "trash"
-    | "diff";
+    | "diff"
+    | "selection"
+    | "agent";
   size?: number;
+  className?: string;
 }) {
   const common = {
     width: size,
     height: size,
-    viewBox: "0 0 16 16",
+    viewBox: "0 0 24 24",
     fill: "none",
     stroke: "currentColor",
-    strokeWidth: 1.35,
+    strokeWidth: 1.75,
     strokeLinecap: "round" as const,
     strokeLinejoin: "round" as const,
     "aria-hidden": true,
+    className,
   };
   switch (name) {
     case "plus":
-      return <svg {...common}><path d="M8 3v10M3 8h10" /></svg>;
+      return <svg {...common}><path d="M12 5v14M5 12h14" /></svg>;
     case "settings":
-      return <svg {...common}><path d="M2.8 4.5h10.4M2.8 8h10.4M2.8 11.5h10.4" /><circle cx="5.5" cy="4.5" r="1.25" fill="currentColor" /><circle cx="10.5" cy="8" r="1.25" fill="currentColor" /><circle cx="6.8" cy="11.5" r="1.25" fill="currentColor" /></svg>;
-    case "chevron":
-      return <svg {...common}><path d="m5 6 3 3 3-3" /></svg>;
-    case "send":
-      return <svg {...common}><path d="M3 8h9M8.5 3.5 13 8l-4.5 4.5" /></svg>;
-    case "stop":
-      return <svg {...common}><rect x="4.5" y="4.5" width="7" height="7" rx="1.2" fill="currentColor" stroke="none" /></svg>;
-    case "check":
-      return <svg {...common}><path d="m3.5 8 2.7 2.7L12.5 4.5" /></svg>;
-    case "error":
-      return <svg {...common}><path d="M8 3.2v5.4M8 11.8v.6" /><circle cx="8" cy="8" r="6" /></svg>;
-    case "spinner":
-      return <svg {...common} className="agent-spin"><path d="M13 8a5 5 0 1 1-1.5-3.6" /></svg>;
-    case "file":
-      return <svg {...common}><path d="M4.2 2.5h4.5l3 3v8H4.2z" /><path d="M8.7 2.7v3h3" /></svg>;
-    case "build":
-      return <svg {...common}><path d="M3 12.5h10M4.2 10V6.4l3.8-2 3.8 2V10M5.7 10V7.5h4.6V10" /></svg>;
-    case "review":
-      return <svg {...common}><path d="M2.5 3.5h11v7h-6l-3 2v-2h-2z" /><path d="M5 6h6M5 8.2h4" /></svg>;
-    case "cite":
-      return <svg {...common}><path d="M4 3h8v10H4zM6 5.5h4M6 8h4M6 10.5h2.5" /></svg>;
-    case "edit":
-      return <svg {...common}><path d="m4 11.8.7-2.8 6.1-6.1 2.3 2.3-6.1 6.1zM9.8 3.9l2.3 2.3" /></svg>;
-    case "branch":
-      return <svg {...common}><circle cx="4.5" cy="3.5" r="1.3" /><circle cx="11.5" cy="4" r="1.3" /><circle cx="11.5" cy="12" r="1.3" /><path d="M4.5 4.8v1.5c0 2 2.4 2.3 4.3 2.7 1.2.3 2.7.8 2.7 2.3V10.7" /></svg>;
-    case "search":
-      return <svg {...common}><circle cx="7" cy="7" r="4" /><path d="m10 10 3 3" /></svg>;
-    case "close":
-      return <svg {...common}><path d="m4.5 4.5 7 7M11.5 4.5l-7 7" /></svg>;
+      return <svg {...common}><path d="M4 6h16M4 12h16M4 18h16" /><circle cx="8" cy="6" r="1.6" fill="currentColor" stroke="none" /><circle cx="15" cy="12" r="1.6" fill="currentColor" stroke="none" /><circle cx="10" cy="18" r="1.6" fill="currentColor" stroke="none" /></svg>;
     case "history":
-      return <svg {...common}><path d="M3.2 8a4.8 4.8 0 1 0 1.4-3.4M3.2 3.5v2.7h2.7M8 5v3.4l2.2 1.3" /></svg>;
-    case "trash":
-      return <svg {...common}><path d="M3.5 4.5h9M6 4.5V3h4v1.5M4.8 4.5l.6 8h5.2l.6-8M6.7 6.5v4M9.3 6.5v4" /></svg>;
-    case "diff":
-      return <svg {...common}><path d="M3 4.5h4M5 2.5v4M9 9.5h4M3.5 11.5h4M9 3.5h4" /></svg>;
-    default:
-      return <svg {...common}><circle cx="8" cy="8" r="5.2" /><path d="M8 5.5v3.2" /></svg>;
-  }
-}
-
-function formatLines(location: { path: string; line?: number }): string {
-  const file = location.path.split(/[\\/]/).pop() || location.path;
-  return location.line ? `${file}:${location.line}` : file;
-}
-
-function statusIcon(status?: string) {
-  if (status === "completed") return <Icon name="check" size={14} />;
-  if (status === "failed") return <Icon name="error" size={14} />;
-  if (status === "in_progress" || status === "pending") {
-    return <Icon name="spinner" size={14} />;
-  }
-  return <Icon name="tool" size={14} />;
-}
-
-function EntryView({
-  entry,
-  onResolvePermission,
-  onOpenLocation,
-}: {
-  entry: AgentUiEntry;
-  onResolvePermission(permissionId: string, optionId?: string): void;
-  onOpenLocation(path: string, line?: number): void;
-}) {
-  switch (entry.type) {
-    case "user":
-      return (
-        <article className="agent-user-message">
-          {entry.contextLabel ? (
-            <div className="agent-context-label">
-              <Icon name="file" size={12} />
-              {entry.contextLabel}
-            </div>
-          ) : null}
-          <p>{entry.text}</p>
-        </article>
-      );
-    case "assistant":
-      return (
-        <article
-          className="agent-assistant-message"
-          data-streaming={entry.streaming || undefined}
-        >
-          <p>{entry.text}</p>
-        </article>
-      );
-    case "thinking":
-      return (
-        <details className="agent-thinking">
-          <summary>Thinking</summary>
-          <p>{entry.text}</p>
-        </details>
-      );
-    case "tool": {
-      const title = entry.title || entry.name || "Tool call";
-      const failed = entry.status === "failed";
-      return (
-        <details
-          className="agent-tool"
-          data-status={entry.status}
-          open={failed || entry.status === "pending" || entry.status === "in_progress" || undefined}
-        >
-          <summary>
-            <span className={`agent-tool-status${failed ? " is-error" : ""}`}>
-              {statusIcon(entry.status)}
-            </span>
-            <span className="agent-tool-title">{title}</span>
-            {entry.kind ? <span className="agent-tool-kind">{entry.kind}</span> : null}
-            <span className="agent-tool-chevron"><Icon name="chevron" size={13} /></span>
-          </summary>
-          {entry.locations?.length ? (
-            <div className="agent-tool-locations">
-              {entry.locations.map((location, index) => (
-                <button
-                  type="button"
-                  className="agent-location"
-                  key={`${location.path}:${location.line ?? 0}:${index}`}
-                  onClick={() => onOpenLocation(location.path, location.line)}
-                >
-                  <Icon name="file" size={12} />
-                  {formatLines(location)}
-                </button>
-              ))}
-            </div>
-          ) : (
-            <p className="agent-tool-empty">No file changes reported for this step.</p>
-          )}
-        </details>
-      );
-    }
-    case "permission":
-      return (
-        <section className="agent-permission" aria-label={entry.title}>
-          <div className="agent-permission-header">
-            <span className="agent-permission-icon">!</span>
-            <div>
-              <strong>{entry.title}</strong>
-              <p>The agent needs permission to continue.</p>
-            </div>
-          </div>
-          {entry.locations?.length ? (
-            <div className="agent-tool-locations">
-              {entry.locations.map((location, index) => (
-                <button
-                  type="button"
-                  className="agent-location"
-                  key={`${location.path}:${location.line ?? 0}:${index}`}
-                  onClick={() => onOpenLocation(location.path, location.line)}
-                >
-                  <Icon name="file" size={12} />
-                  {formatLines(location)}
-                </button>
-              ))}
-            </div>
-          ) : null}
-          {entry.resolvedOptionId ? (
-            <p className="agent-permission-resolved">
-              {entry.options.find((option) => option.id === entry.resolvedOptionId)?.label ||
-                "Decision sent"}
-            </p>
-          ) : (
-            <div className="agent-permission-actions">
-              {entry.options.map((option) => {
-                const reject = option.kind?.startsWith("reject");
-                return (
-                  <button
-                    type="button"
-                    className={reject ? "agent-button quiet" : "agent-button"}
-                    key={option.id}
-                    onClick={() => onResolvePermission(entry.id, option.id)}
-                  >
-                    {option.label}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </section>
-      );
-    case "notice":
-      return (
-        <div className="agent-notice" data-severity={entry.severity}>
-          <span>{entry.severity === "error" ? <Icon name="error" size={13} /> : "i"}</span>
-          {entry.text}
-        </div>
-      );
+      return <svg {...common}><path d="M4.5 8.5A8 8 0 1 1 4 12" /><path d="M4.5 4.5v4h4" /><path d="M12 8v4l2.6 1.6" /></svg>;
+    case "chevron":
+      return <svg {...common}><path d="m7 9 5 5 5-5" /></svg>;
+    case "send":
+      return <svg {...common}><path d="M12 19V5M5 12l7-7 7 7" /></svg>;
+    case "stop":
+      return <svg {...common}><rect x="7" y="7" width="10" height="10" rx="1.5" fill="currentColor" stroke="none" /></svg>;
+    case "check":
+      return <svg {...common}><path d="m5 12 4.2 4.2L19 6.5" /></svg>;
     case "error":
-      return (
-        <div className="agent-error">
-          <Icon name="error" size={14} />
-          <p>{entry.text}</p>
-        </div>
-      );
+      return <svg {...common}><circle cx="12" cy="12" r="8.5" /><path d="M12 7.5v5.3M12 16.2v.4" /></svg>;
+    case "spinner":
+      return <svg {...common}><path d="M19.5 12a7.5 7.5 0 1 1-2.2-5.3" /></svg>;
+    case "file":
+      return <svg {...common}><path d="M6 3.5h7l4.5 4.5v12.5H6z" /><path d="M13 3.8V8h4.2" /></svg>;
+    case "tool":
+      return <svg {...common}><path d="M14.7 6.3a4 4 0 0 0-5.2 5.2L4 17v3h3l5.5-5.5a4 4 0 0 0 5.2-5.2l-2.4 2.4-2.8-2.8z" /></svg>;
+    case "search":
+      return <svg {...common}><circle cx="10.5" cy="10.5" r="6.2" /><path d="m15.2 15.2 4.3 4.3" /></svg>;
+    case "close":
+      return <svg {...common}><path d="m6 6 12 12M18 6 6 18" /></svg>;
+    case "trash":
+      return <svg {...common}><path d="M5 7h14M9 7V4.5h6V7M7.2 7l.8 13h8l.8-13M10 10.5v6M14 10.5v6" /></svg>;
+    case "diff":
+      return <svg {...common}><path d="M5 6h6M8 3v6M13 18h6M13 12h6M13 9h6" /></svg>;
+    case "selection":
+      return <svg {...common}><path d="M8 4H5a1 1 0 0 0-1 1v3M16 4h3a1 1 0 0 1 1 1v3M8 20H5a1 1 0 0 1-1-1v-3M16 20h3a1 1 0 0 0 1-1v-3M8 12h8M8 16h5M8 8h6" /></svg>;
+    case "agent":
+      return <svg {...common}><rect x="5" y="7" width="14" height="11" rx="3" /><path d="M12 3v4M9 12h.1M15 12h.1M9 16h6" /></svg>;
   }
 }
 
-function EmptyState({
-  onSend,
-  agentId,
-  onSelectAgent,
-}: {
-  onSend(text: string): void;
-  agentId: AgentUiAgentId;
-  onSelectAgent(agentId: AgentUiAgentId): void;
-}) {
-  return (
-    <section className="agent-empty" aria-label="Start a new agent thread">
-      <div className="agent-empty-agent-switch" role="group" aria-label="Agent">
-        <button
-          type="button"
-          data-active={agentId === "opencode" || undefined}
-          onClick={() => onSelectAgent("opencode")}
-        >
-          OpenCode
-        </button>
-        <button
-          type="button"
-          data-active={agentId === "codex" || undefined}
-          onClick={() => onSelectAgent("codex")}
-        >
-          Codex
-        </button>
-      </div>
-      <h2>Work on this paper</h2>
-      <p className="agent-empty-copy">
-        Ask the agent to inspect the project, repair the build, or revise a section.
-      </p>
-      <div className="agent-suggestions">
-        {SUGGESTIONS.map((suggestion) => (
-          <button
-            type="button"
-            className="agent-suggestion"
-            key={suggestion.title}
-            onClick={() => onSend(suggestion.prompt)}
-          >
-            <span className="agent-suggestion-icon">
-              <Icon name={suggestion.icon} size={16} />
-            </span>
-            <span>
-              <strong>{suggestion.title}</strong>
-              <small>{suggestion.detail}</small>
-            </span>
-          </button>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function providerOf(value: string): string {
-  const index = value.indexOf("/");
-  return index > 0 ? value.slice(0, index) : "Other";
-}
-
-function groupModels(
-  options: Array<{ value: string; label: string }>,
-): Array<{ provider: string; models: Array<{ value: string; label: string }> }> {
-  const groups = new Map<string, Array<{ value: string; label: string }>>();
-  for (const option of options) {
-    const provider = providerOf(option.value);
-    const models = groups.get(provider) ?? [];
-    models.push(option);
-    groups.set(provider, models);
-  }
-  return [...groups.entries()].map(([provider, models]) => ({
-    provider: provider === "Other" ? "Models" : provider,
-    models,
-  }));
-}
-
-function ModelPicker({
-  options,
-  visibleModels,
-  phase,
-  onChange,
-  onSetVisibleModels,
-}: {
-  options: AgentUiConfigOption[];
-  visibleModels?: string[];
-  phase: AgentUiSnapshot["phase"];
-  onChange(configId: string, value: string): void;
-  onSetVisibleModels(values: string[] | null): void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const [managing, setManaging] = useState(false);
-  const [managerQuery, setManagerQuery] = useState("");
-  const [selection, setSelection] = useState<Set<string>>(new Set());
-  const model = options.find(
-    (option) => option.id === "model" || option.category === "model",
-  );
-  const allOptions = model?.options ?? [];
-  const visibleSet = visibleModels ? new Set(visibleModels) : undefined;
-  const visibleOptions = visibleSet
-    ? allOptions.filter((option) => visibleSet.has(option.value))
-    : allOptions;
-  const current =
-    allOptions.find((option) => option.value === model?.currentValue)?.label ||
-    model?.currentValue ||
-    "Default model";
-  const filtered = useMemo(() => {
-    const needle = query.trim().toLowerCase();
-    return needle
-      ? visibleOptions.filter(
-          (option) =>
-            option.label.toLowerCase().includes(needle) ||
-            option.value.toLowerCase().includes(needle),
-        )
-      : visibleOptions;
-  }, [query, visibleOptions]);
-  const groups = useMemo(() => groupModels(filtered), [filtered]);
-  const managerGroups = useMemo(() => {
-    const needle = managerQuery.trim().toLowerCase();
-    const filteredOptions = needle
-      ? allOptions.filter(
-          (option) =>
-            option.label.toLowerCase().includes(needle) ||
-            option.value.toLowerCase().includes(needle),
-        )
-      : allOptions;
-    return groupModels(filteredOptions);
-  }, [allOptions, managerQuery]);
-
-  const unavailableLabel =
-    phase === "starting"
-      ? "Loading models…"
-      : phase === "authentication_required"
-        ? "Sign in to load models"
-        : phase === "failed"
-          ? "Models unavailable"
-          : "Default model";
-
-  const openManager = () => {
-    setManagerQuery("");
-    setSelection(new Set(visibleModels ?? allOptions.map((option) => option.value)));
-    setOpen(false);
-    setManaging(true);
+function StarterIcon({
+  kind,
+  ...props
+}: { kind: StarterKind } & SVGProps<SVGSVGElement>) {
+  const paths: Record<StarterKind, readonly string[]> = {
+    polish: [
+      "m21.64 3.64-1.28-1.28a1.21 1.21 0 0 0-1.72 0L2.36 18.64a1.21 1.21 0 0 0 0 1.72l1.28 1.28a1.2 1.2 0 0 0 1.72 0L21.64 5.36a1.2 1.2 0 0 0 0-1.72",
+      "m14 7 3 3",
+      "M5 6v4",
+      "M19 14v4",
+      "M10 2v2",
+      "M7 8H3",
+      "M21 16h-4",
+      "M11 3H9",
+    ],
+    revise: [
+      "M13 21h8",
+      "M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z",
+    ],
+    proofread: ["m6 16 6-12 6 12", "M8 12h8", "m16 20 2 2 4-4"],
+    references: [
+      "M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H19a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H6.5a1 1 0 0 1 0-5H20",
+      "m9 9.5 2 2 4-4",
+    ],
   };
-
-  const toggleSelection = (value: string) => {
-    setSelection((previous) => {
-      const next = new Set(previous);
-      if (next.has(value)) next.delete(value);
-      else next.add(value);
-      return next;
-    });
-  };
-
-  const saveManager = () => {
-    if (selection.size === 0) return;
-    const allSelected = selection.size === allOptions.length;
-    onSetVisibleModels(allSelected ? null : [...selection]);
-    setManaging(false);
-  };
-
-  if (!model) {
-    return (
-      <span className="agent-model-label" data-state={phase}>
-        {phase === "starting" ? <Icon name="spinner" size={12} /> : null}
-        {unavailableLabel}
-      </span>
-    );
-  }
-
   return (
-    <div className="agent-model-picker">
-      <button
-        type="button"
-        className="agent-model-trigger"
-        aria-expanded={open}
-        onClick={() => setOpen((value) => !value)}
-      >
-        <span>{current}</span>
-        <Icon name="chevron" size={12} />
-      </button>
-      {open ? (
-        <div className="agent-model-menu" role="menu" aria-label="Model">
-          <div className="agent-model-search">
-            <Icon name="search" size={13} />
-            <input
-              value={query}
-              aria-label="Search models"
-              placeholder="Search models…"
-              onChange={(event) => setQuery(event.target.value)}
-              autoFocus
-            />
-          </div>
-          <div className="agent-model-options">
-            {groups.length > 0 ? (
-              groups.map((group) => (
-                <div className="agent-model-group" key={group.provider}>
-                  <div className="agent-menu-label">{group.provider}</div>
-                  {group.models.map((option) => (
-                    <button
-                      type="button"
-                      role="menuitemradio"
-                      aria-checked={option.value === model.currentValue}
-                      data-active={option.value === model.currentValue || undefined}
-                      key={option.value}
-                      onClick={() => {
-                        setOpen(false);
-                        setQuery("");
-                        onChange(model.id, option.value);
-                      }}
-                    >
-                      <span>{option.label}</span>
-                      {option.value === model.currentValue ? <Icon name="check" size={13} /> : null}
-                    </button>
-                  ))}
-                </div>
-              ))
-            ) : (
-              <p className="agent-model-empty">No models match “{query}”.</p>
-            )}
-          </div>
-          <button
-            type="button"
-            className="agent-manage-models"
-            onClick={openManager}
-          >
-            <Icon name="settings" size={13} />
-            <span>
-              Manage visible models
-              <small>
-                {visibleModels ? `${visibleOptions.length} of ${allOptions.length}` : "All models"}
-              </small>
-            </span>
-            <Icon name="chevron" size={12} />
-          </button>
-        </div>
-      ) : null}
-
-      {managing ? (
-        <div
-          className="agent-model-overlay"
-          role="presentation"
-          onMouseDown={() => setManaging(false)}
-        >
-          <section
-            className="agent-model-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Visible models"
-            onMouseDown={(event) => event.stopPropagation()}
-          >
-            <header className="agent-model-dialog-header">
-              <div>
-                <strong>Visible models</strong>
-                <span>Choose what appears in the model selector.</span>
-              </div>
-              <button
-                type="button"
-                className="agent-icon-button"
-                aria-label="Close model settings"
-                onClick={() => setManaging(false)}
-              >
-                <Icon name="close" size={14} />
-              </button>
-            </header>
-            <div className="agent-model-dialog-tools">
-              <label className="agent-model-search is-dialog">
-                <Icon name="search" size={13} />
-                <input
-                  value={managerQuery}
-                  aria-label="Search all models"
-                  placeholder="Search all models…"
-                  onChange={(event) => setManagerQuery(event.target.value)}
-                  autoFocus
-                />
-              </label>
-              <button
-                type="button"
-                className="agent-text-button"
-                onClick={() =>
-                  setSelection(new Set(allOptions.map((option) => option.value)))
-                }
-              >
-                All
-              </button>
-              <button
-                type="button"
-                className="agent-text-button"
-                onClick={() => setSelection(new Set())}
-              >
-                None
-              </button>
-            </div>
-            <div className="agent-model-dialog-list">
-              {managerGroups.length > 0 ? (
-                managerGroups.map((group) => (
-                  <div className="agent-model-group" key={group.provider}>
-                    <div className="agent-menu-label">{group.provider}</div>
-                    {group.models.map((option) => {
-                      const checked = selection.has(option.value);
-                      return (
-                        <button
-                          type="button"
-                          role="checkbox"
-                          aria-checked={checked}
-                          className="agent-model-check"
-                          data-checked={checked || undefined}
-                          key={option.value}
-                          onClick={() => toggleSelection(option.value)}
-                        >
-                          <span className="agent-checkbox">
-                            {checked ? <Icon name="check" size={11} /> : null}
-                          </span>
-                          <span>{option.label}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                ))
-              ) : (
-                <p className="agent-model-empty">No models match “{managerQuery}”.</p>
-              )}
-            </div>
-            <footer className="agent-model-dialog-footer">
-              <span>
-                {selection.size} of {allOptions.length} selected
-              </span>
-              <div>
-                <button
-                  type="button"
-                  className="agent-button quiet"
-                  onClick={() => setManaging(false)}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  className="agent-button"
-                  disabled={selection.size === 0}
-                  onClick={saveManager}
-                >
-                  Save
-                </button>
-              </div>
-            </footer>
-          </section>
-        </div>
-      ) : null}
-    </div>
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={1.75}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+      {...props}
+    >
+      {paths[kind].map((d) => <path key={d} d={d} />)}
+    </svg>
   );
 }
 
-function AgentErrorBanner({
-  snapshot,
-  onOpenSettings,
-}: {
-  snapshot: AgentUiSnapshot;
-  onOpenSettings(): void;
-}) {
-  if (snapshot.phase !== "failed" || !snapshot.error) return null;
-  return (
-    <section className="agent-auth is-error" aria-label="Agent unavailable">
-      <div>
-        <strong>Agent unavailable</strong>
-        <p>{snapshot.error}</p>
-      </div>
-      <div className="agent-auth-actions">
-        <button type="button" className="agent-button" onClick={onOpenSettings}>
-          Open settings
-        </button>
-      </div>
-    </section>
-  );
+function formatTime(timestamp: number): string {
+  return new Date(timestamp).toLocaleTimeString(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
-function AuthBanner({
-  snapshot,
-  onAuthenticate,
-}: {
-  snapshot: AgentUiSnapshot;
-  onAuthenticate(methodId?: string): void;
-}) {
-  if (snapshot.phase !== "authentication_required") return null;
-  return (
-    <section className="agent-auth" aria-label="Agent sign in required">
-      <div>
-        <strong>Sign in required</strong>
-        <p>{snapshot.agentLabel} needs to sign in before it can continue.</p>
-      </div>
-      <div className="agent-auth-actions">
-        {snapshot.authMethods.length > 0 ? (
-          snapshot.authMethods.map((method) => (
-            <button
-              type="button"
-              className="agent-button"
-              key={method.id}
-              onClick={() => onAuthenticate(method.id)}
-            >
-              {method.label}
-            </button>
-          ))
-        ) : (
-          <button type="button" className="agent-button" onClick={() => onAuthenticate()}>
-            Sign in
-          </button>
-        )}
-      </div>
-    </section>
-  );
-}
-
-function historyTime(timestamp: number): string {
+function formatHistoryTime(timestamp: number): string {
   return new Date(timestamp).toLocaleString(undefined, {
     month: "short",
     day: "numeric",
@@ -729,7 +238,702 @@ function historyTime(timestamp: number): string {
   });
 }
 
-function AgentHistoryDialog({
+function shortPath(path: string): string {
+  const parts = path.replaceAll("\\", "/").split("/");
+  return parts[parts.length - 1] || path;
+}
+
+function contextName(context: AgentUiContext): string {
+  return context.label.replace(/\s*·\s*selection$/i, "").trim() || "Current selection";
+}
+
+function contextDetail(context: AgentUiContext): string | null {
+  return context.line ? `line ${context.line}` : null;
+}
+
+function permissionDescription(kind?: string): string | null {
+  switch (kind) {
+    case "allow_once":
+      return "Allow this request once";
+    case "allow_always":
+    case "allow_session":
+      return "Allow this kind of request for this session";
+    case "reject_once":
+      return "Decline this request";
+    case "reject_always":
+      return "Always decline this kind of request";
+    default:
+      return null;
+  }
+}
+
+function statusIcon(status?: string) {
+  if (status === "completed") return <Icon name="check" size={13} />;
+  if (status === "failed") return <Icon name="error" size={13} />;
+  if (status === "in_progress" || status === "pending") {
+    return <Icon name="spinner" size={13} className="lattice-spin" />;
+  }
+  return <Icon name="tool" size={13} />;
+}
+
+function ContextChip({ context, align = "start" }: { context: AgentUiContext; align?: "start" | "end" }) {
+  const detail = contextDetail(context);
+  return (
+    <div className="lattice-context-chip" data-align={align} title={context.selectedText ?? context.label}>
+      <Icon name="selection" size={13} />
+      <span className="lattice-context-label">Selection</span>
+      <span aria-hidden="true" className="lattice-context-dot">·</span>
+      <span className="lattice-context-name" title={contextName(context)}>{contextName(context)}</span>
+      {detail ? <span className="lattice-context-detail">{detail}</span> : null}
+    </div>
+  );
+}
+
+const EMPTY_DENSITIES = ["full", "compact", "chips", "bare", "icons", "hidden"] as const;
+type EmptyDensity = (typeof EMPTY_DENSITIES)[number];
+
+function AgentEmptyThread({
+  context,
+  bottomInsetPx,
+  onStarter,
+}: {
+  context?: AgentUiContext;
+  bottomInsetPx: number;
+  onStarter(prompt: string): void;
+}) {
+  const [fit, setFit] = useState({ step: 0, generation: 0 });
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const density: EmptyDensity = EMPTY_DENSITIES[fit.step] ?? "full";
+  const hasSelection = Boolean(context?.selectedText || context?.label);
+
+  useLayoutEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport || fit.step >= EMPTY_DENSITIES.length - 1) return;
+    if (viewport.scrollHeight > viewport.clientHeight + 1 || viewport.scrollWidth > viewport.clientWidth + 1) {
+      setFit((current) => ({ ...current, step: current.step + 1 }));
+    }
+  }, [fit]);
+
+  const refit = useCallback(() => {
+    setFit((current) => ({ step: 0, generation: current.generation + 1 }));
+  }, []);
+
+  useLayoutEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport) return;
+    let disposed = false;
+    void document.fonts?.ready.then(() => {
+      if (!disposed) refit();
+    });
+    if (typeof ResizeObserver === "undefined") return () => { disposed = true; };
+    const observer = new ResizeObserver(refit);
+    observer.observe(viewport, { box: "border-box" });
+    return () => {
+      disposed = true;
+      observer.disconnect();
+    };
+  }, [refit]);
+
+  const showTitle = density === "full" || density === "compact" || density === "chips";
+  const showHint = density === "full" || density === "compact";
+  const showChip = showTitle && hasSelection && context;
+
+  const renderStarter = (starter: (typeof STARTERS)[number]) => {
+    const prompt = hasSelection ? starter.selectedPrompt : starter.prompt;
+    if (density === "icons") {
+      return (
+        <li key={starter.kind} className="lattice-starter-item is-icon">
+          <button
+            type="button"
+            data-starter={starter.kind}
+            aria-label={starter.title}
+            title={`${starter.title} · ${starter.example}`}
+            className="lattice-starter is-icon"
+            onClick={() => onStarter(prompt)}
+          >
+            <StarterIcon kind={starter.kind} className="lattice-starter-glyph" />
+          </button>
+        </li>
+      );
+    }
+    if (density === "chips" || density === "bare") {
+      return (
+        <li key={starter.kind} className="lattice-starter-item is-chip">
+          <button
+            type="button"
+            data-starter={starter.kind}
+            title={starter.example}
+            className="lattice-starter is-chip"
+            onClick={() => onStarter(prompt)}
+          >
+            <StarterIcon kind={starter.kind} className="lattice-starter-glyph" />
+            <span>{starter.title}</span>
+          </button>
+        </li>
+      );
+    }
+    const compact = density === "compact";
+    return (
+      <li key={starter.kind} className="lattice-starter-item">
+        <button
+          type="button"
+          data-starter={starter.kind}
+          title={compact ? starter.example : undefined}
+          className="lattice-starter"
+          data-compact={compact || undefined}
+          onClick={() => onStarter(prompt)}
+        >
+          <span className="lattice-starter-icon" aria-hidden="true">
+            <StarterIcon kind={starter.kind} />
+          </span>
+          {compact ? (
+            <span className="lattice-starter-title">{starter.title}</span>
+          ) : (
+            <span className="lattice-starter-copy">
+              <span className="lattice-starter-title">{starter.title}</span>
+              <span className="lattice-starter-example">{starter.example}</span>
+            </span>
+          )}
+        </button>
+      </li>
+    );
+  };
+
+  return (
+    <div className="lattice-empty-thread" data-density={density} data-selection={hasSelection || undefined}>
+      <div
+        ref={viewportRef}
+        className="lattice-empty-viewport"
+        style={{ bottom: `${bottomInsetPx + 8}px` }}
+      >
+        <div className="lattice-empty-center">
+          {showTitle ? <h2 className="lattice-empty-title">Work on this paper</h2> : null}
+          {showHint ? (
+            <p className="lattice-empty-hint">
+              {hasSelection
+                ? "These act on the selected text only"
+                : "To work on a single passage, select it in the editor"}
+            </p>
+          ) : null}
+          {showChip ? <ContextChip context={context} /> : null}
+          <ul className="lattice-starters">
+            {STARTERS.map(renderStarter)}
+          </ul>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AgentLoadingSkeleton() {
+  return (
+    <div className="lattice-agent-skeleton" aria-hidden="true">
+      <div className="lattice-skeleton-header">
+        <span className="lattice-skeleton-thread" />
+        <span className="lattice-skeleton-chip" data-end />
+        <span className="lattice-skeleton-square" />
+      </div>
+      <div className="lattice-skeleton-body">
+        <span className="lattice-skeleton-heading" />
+        <span className="lattice-skeleton-description"><span /><span /></span>
+        {[24, 26, 38, 66].map((width) => (
+          <div className="lattice-skeleton-suggestion" key={width}>
+            <span className="lattice-skeleton-tile" />
+            <span className="lattice-skeleton-lines"><span style={{ width: `${width}%` }} /><span /></span>
+          </div>
+        ))}
+      </div>
+      <div className="lattice-skeleton-composer">
+        <span className="lattice-skeleton-placeholder" />
+        <span className="lattice-skeleton-round" />
+      </div>
+    </div>
+  );
+}
+
+function AgentEntry({
+  entry,
+  onOpenLocation,
+}: {
+  entry: AgentUiEntry;
+  onOpenLocation(path: string, line?: number): void;
+}) {
+  switch (entry.type) {
+    case "user":
+      return (
+        <article className="lattice-message-row is-user">
+          {entry.contextLabel ? (
+            <div className="lattice-user-context" title={entry.contextLabel}>
+              <Icon name="file" size={12} />
+              <span>{entry.contextLabel}</span>
+            </div>
+          ) : null}
+          <div className="lattice-user-bubble">
+            <p>{entry.text}</p>
+          </div>
+          <div className="lattice-message-meta is-user">{formatTime(entry.at)}</div>
+        </article>
+      );
+    case "assistant":
+      return (
+        <article className="lattice-message-row is-assistant">
+          <div className="lattice-assistant-body" data-streaming={entry.streaming || undefined}>
+            {entry.text}
+          </div>
+          <div className="lattice-message-meta">
+            <span>{formatTime(entry.at)}</span>
+            {entry.streaming ? <span className="lattice-working-label">Working</span> : null}
+          </div>
+        </article>
+      );
+    case "thinking":
+      return (
+        <details className="lattice-work-row" open={entry.streaming || undefined}>
+          <summary>
+            <span className="lattice-work-status">
+              {entry.streaming ? <Icon name="spinner" size={13} className="lattice-spin" /> : <Icon name="check" size={13} />}
+            </span>
+            <span className="lattice-work-title">Thinking</span>
+            <span className="lattice-work-chevron"><Icon name="chevron" size={12} /></span>
+          </summary>
+          <div className="lattice-work-detail">
+            <p>{entry.text}</p>
+          </div>
+        </details>
+      );
+    case "tool": {
+      const failed = entry.status === "failed";
+      return (
+        <details className="lattice-work-row" data-status={entry.status} open={failed || entry.status === "pending" || entry.status === "in_progress" || undefined}>
+          <summary>
+            <span className="lattice-work-status">{statusIcon(entry.status)}</span>
+            <span className="lattice-work-title">{entry.title || entry.name || "Tool call"}</span>
+            {entry.kind ? <span className="lattice-work-kind">{entry.kind}</span> : null}
+            <span className="lattice-work-chevron"><Icon name="chevron" size={12} /></span>
+          </summary>
+          {entry.locations?.length ? (
+            <div className="lattice-work-locations">
+              {entry.locations.map((location, index) => (
+                <button
+                  type="button"
+                  className="lattice-location"
+                  key={`${location.path}:${location.line ?? 0}:${index}`}
+                  onClick={() => onOpenLocation(location.path, location.line)}
+                >
+                  <Icon name="file" size={12} />
+                  <span>{shortPath(location.path)}</span>
+                  {location.line ? <span className="lattice-location-line">{location.line}</span> : null}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </details>
+      );
+    }
+    case "permission": {
+      if (!entry.resolvedOptionId) return null;
+      const label = entry.options.find((option) => option.id === entry.resolvedOptionId)?.label ?? "Decision sent";
+      return (
+        <div className="lattice-work-row is-static">
+          <span className="lattice-work-status"><Icon name="check" size={13} /></span>
+          <span className="lattice-work-title">{entry.title}</span>
+          <span className="lattice-work-kind">{label}</span>
+        </div>
+      );
+    }
+    case "notice":
+      return (
+        <div className="lattice-inline-notice" data-severity={entry.severity}>
+          <Icon name={entry.severity === "error" ? "error" : "agent"} size={13} />
+          <span>{entry.text}</span>
+        </div>
+      );
+    case "error":
+      return (
+        <div className="lattice-inline-notice" data-severity="error">
+          <Icon name="error" size={13} />
+          <span>{entry.text}</span>
+        </div>
+      );
+  }
+}
+
+function AgentErrorBanner({ snapshot, onOpenSettings }: { snapshot: AgentUiSnapshot; onOpenSettings(): void }) {
+  if (snapshot.phase !== "failed" || !snapshot.error) return null;
+  return (
+    <section className="lattice-composer-panel" aria-label="Agent unavailable">
+      <div className="lattice-panel-heading">
+        <span className="lattice-panel-icon is-error"><Icon name="error" size={14} /></span>
+        <div>
+          <strong>Agent unavailable</strong>
+          <p>{snapshot.error}</p>
+        </div>
+      </div>
+      <button type="button" className="lattice-button" onClick={onOpenSettings}>Open settings</button>
+    </section>
+  );
+}
+
+function AuthBanner({ snapshot, onAuthenticate }: { snapshot: AgentUiSnapshot; onAuthenticate(methodId?: string): void }) {
+  if (snapshot.phase !== "authentication_required") return null;
+  return (
+    <section className="lattice-composer-panel" aria-label="Agent sign in required">
+      <div className="lattice-panel-heading">
+        <span className="lattice-panel-icon"><Icon name="agent" size={14} /></span>
+        <div>
+          <strong>Sign in required</strong>
+          <p>{snapshot.agentLabel} needs to sign in before it can continue.</p>
+        </div>
+      </div>
+      <div className="lattice-panel-actions">
+        {snapshot.authMethods.length > 0 ? snapshot.authMethods.map((method) => (
+          <button type="button" className="lattice-button" key={method.id} onClick={() => onAuthenticate(method.id)}>
+            {method.label}
+          </button>
+        )) : (
+          <button type="button" className="lattice-button" onClick={() => onAuthenticate()}>Sign in</button>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function AgentPermissionPanel({
+  entry,
+  onResolve,
+}: {
+  entry: Extract<AgentUiEntry, { type: "permission" }>;
+  onResolve(permissionId: string, optionId?: string): void;
+}) {
+  const panelRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    panelRef.current?.focus();
+  }, [entry.id]);
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.metaKey || event.ctrlKey || event.altKey) return;
+    const index = Number.parseInt(event.key, 10) - 1;
+    const option = entry.options[index];
+    if (!option) return;
+    event.preventDefault();
+    onResolve(entry.id, option.id);
+  };
+
+  return (
+    <div
+      ref={panelRef}
+      className="lattice-permission-panel"
+      role="dialog"
+      aria-label={entry.title}
+      tabIndex={-1}
+      onKeyDown={handleKeyDown}
+    >
+      <div className="lattice-panel-heading">
+        <span className="lattice-panel-icon"><Icon name="tool" size={14} /></span>
+        <div>
+          <strong>Approve this tool call?</strong>
+          <p>{entry.title}</p>
+        </div>
+      </div>
+      {entry.locations?.length ? (
+        <div className="lattice-work-locations">
+          {entry.locations.map((location, index) => (
+            <span className="lattice-location is-static" key={`${location.path}:${location.line ?? 0}:${index}`}>
+              <Icon name="file" size={12} />
+              <span>{shortPath(location.path)}</span>
+              {location.line ? <span className="lattice-location-line">{location.line}</span> : null}
+            </span>
+          ))}
+        </div>
+      ) : null}
+      <div className="lattice-choice-list">
+        {entry.options.map((option, index) => {
+          const reject = option.kind?.startsWith("reject");
+          return (
+            <button
+              type="button"
+              className="lattice-choice"
+              data-tone={reject ? "destructive" : index === 0 ? "primary" : "neutral"}
+              key={option.id}
+              onClick={() => onResolve(entry.id, option.id)}
+            >
+              <span className="lattice-choice-index">{index + 1}</span>
+              <span className="lattice-choice-copy">
+                <strong>{option.label}</strong>
+                {permissionDescription(option.kind) ? <small>{permissionDescription(option.kind)}</small> : null}
+              </span>
+              <Icon name="chevron" size={12} />
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function AgentPicker({
+  agentId,
+  agentLabel,
+  onSelectAgent,
+}: {
+  agentId: AgentUiAgentId;
+  agentLabel: string;
+  onSelectAgent(agentId: AgentUiAgentId): void;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    window.addEventListener("pointerdown", close);
+    return () => window.removeEventListener("pointerdown", close);
+  }, [open]);
+
+  return (
+    <div className="lattice-picker" ref={rootRef}>
+      <button type="button" className="lattice-picker-trigger" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
+        <Icon name="agent" size={13} />
+        <span>{agentLabel}</span>
+        <Icon name="chevron" size={11} />
+      </button>
+      {open ? (
+        <div className="lattice-picker-menu is-agent" role="menu" aria-label="Agent">
+          {(Object.keys(AGENT_LABEL) as AgentUiAgentId[]).map((id) => (
+            <button
+              type="button"
+              role="menuitemradio"
+              aria-checked={id === agentId}
+              data-active={id === agentId || undefined}
+              className="lattice-picker-option"
+              key={id}
+              onClick={() => {
+                setOpen(false);
+                onSelectAgent(id);
+              }}
+            >
+              <span>{AGENT_LABEL[id]}</span>
+              {id === agentId ? <Icon name="check" size={13} /> : null}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function providerOf(value: string): string {
+  const index = value.indexOf("/");
+  return index > 0 ? value.slice(0, index) : "Models";
+}
+
+function groupOptions(options: AgentUiConfigOption["options"]) {
+  const groups = new Map<string, Array<{ value: string; label: string }>>();
+  for (const option of options) {
+    const provider = providerOf(option.value);
+    const group = groups.get(provider) ?? [];
+    group.push(option);
+    groups.set(provider, group);
+  }
+  return [...groups.entries()].map(([provider, entries]) => ({ provider, entries }));
+}
+
+function ConfigPicker({
+  option,
+  onChange,
+}: {
+  option: AgentUiConfigOption;
+  onChange(configId: string, value: string): void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const rootRef = useRef<HTMLDivElement>(null);
+  const current = option.options.find((entry) => entry.value === option.currentValue);
+  const model = option.id === "model" || option.category === "model";
+  const filtered = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    return needle
+      ? option.options.filter((entry) => entry.label.toLowerCase().includes(needle) || entry.value.toLowerCase().includes(needle))
+      : option.options;
+  }, [option.options, query]);
+  const groups = useMemo(() => groupOptions(filtered), [filtered]);
+
+  useEffect(() => {
+    if (!open) return;
+    const close = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    window.addEventListener("pointerdown", close);
+    return () => window.removeEventListener("pointerdown", close);
+  }, [open]);
+
+  const label = current?.label || option.currentValue || "Default";
+
+  return (
+    <div className="lattice-picker" ref={rootRef}>
+      <button
+        type="button"
+        className="lattice-picker-trigger"
+        aria-expanded={open}
+        aria-label={option.name}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <span>{label}</span>
+        <Icon name="chevron" size={11} />
+      </button>
+      {open ? (
+        <div className="lattice-picker-menu" role="menu" aria-label={option.name}>
+          {model ? (
+            <label className="lattice-picker-search">
+              <Icon name="search" size={13} />
+              <input
+                value={query}
+                aria-label={`Search ${option.name.toLowerCase()}`}
+                placeholder="Search models…"
+                onChange={(event) => setQuery(event.target.value)}
+                autoFocus
+              />
+            </label>
+          ) : null}
+          <div className="lattice-picker-options">
+            {groups.length > 0 ? groups.map((group) => (
+              <div className="lattice-picker-group" key={group.provider}>
+                {model ? <div className="lattice-picker-group-label">{group.provider}</div> : null}
+                {group.entries.map((entry) => (
+                  <button
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={entry.value === option.currentValue}
+                    data-active={entry.value === option.currentValue || undefined}
+                    className="lattice-picker-option"
+                    key={entry.value}
+                    onClick={() => {
+                      setOpen(false);
+                      setQuery("");
+                      onChange(option.id, entry.value);
+                    }}
+                  >
+                    <span>{entry.label}</span>
+                    {entry.value === option.currentValue ? <Icon name="check" size={13} /> : null}
+                  </button>
+                ))}
+              </div>
+            )) : <p className="lattice-picker-empty">No models match “{query}”.</p>}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function AgentComposer({
+  snapshot,
+  draft,
+  setDraft,
+  send,
+  stackRef,
+  textareaRef,
+  pendingPermission,
+  onCancel,
+  onResolvePermission,
+  onSelectAgent,
+  onSelectConfig,
+  onAuthenticate,
+  onOpenSettings,
+}: {
+  snapshot: AgentUiSnapshot;
+  draft: string;
+  setDraft(value: string): void;
+  send(): void;
+  stackRef: { current: HTMLDivElement | null };
+  textareaRef: { current: HTMLTextAreaElement | null };
+  pendingPermission: Extract<AgentUiEntry, { type: "permission" }> | null;
+  onCancel(): void;
+  onResolvePermission(permissionId: string, optionId?: string): void;
+  onSelectAgent(agentId: AgentUiAgentId): void;
+  onSelectConfig(configId: string, value: string): void;
+  onAuthenticate(methodId?: string): void;
+  onOpenSettings(): void;
+}) {
+  const busy = snapshot.phase === "running" || snapshot.phase === "waiting_permission" || snapshot.phase === "authentication_required";
+  const stop = snapshot.phase === "running" || snapshot.phase === "waiting_permission";
+
+  const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;
+    event.preventDefault();
+    send();
+  };
+
+  return (
+    <div className="lattice-composer-slot">
+      <div className="lattice-composer-stack" ref={stackRef}>
+        <AgentErrorBanner snapshot={snapshot} onOpenSettings={onOpenSettings} />
+        <AuthBanner snapshot={snapshot} onAuthenticate={onAuthenticate} />
+        {pendingPermission ? (
+          <AgentPermissionPanel entry={pendingPermission} onResolve={onResolvePermission} />
+        ) : null}
+        {snapshot.context ? <ContextChip context={snapshot.context} /> : null}
+        <div className="lattice-composer-surface">
+          <div className="lattice-composer-editor">
+            <textarea
+              ref={textareaRef}
+              rows={1}
+              aria-label="Prompt"
+              placeholder="Do anything in Lattice"
+              value={draft}
+              disabled={snapshot.phase === "authentication_required"}
+              onChange={(event) => setDraft(event.target.value)}
+              onKeyDown={onKeyDown}
+            />
+          </div>
+          <div className="lattice-composer-footer">
+            <div className="lattice-composer-pickers">
+              <AgentPicker
+                agentId={snapshot.agentId}
+                agentLabel={snapshot.agentLabel}
+                onSelectAgent={onSelectAgent}
+              />
+              {snapshot.configOptions.map((option) => (
+                <ConfigPicker key={option.id} option={option} onChange={onSelectConfig} />
+              ))}
+            </div>
+            <div className="lattice-composer-actions">
+              <span className="lattice-phase" data-phase={snapshot.phase}>
+                {snapshot.phase === "running" || snapshot.phase === "starting" ? (
+                  <Icon name="spinner" size={12} className="lattice-spin" />
+                ) : snapshot.phase === "failed" ? (
+                  <Icon name="error" size={12} />
+                ) : snapshot.phase === "waiting_permission" ? (
+                  <span className="lattice-phase-dot" />
+                ) : null}
+                {PHASE_LABEL[snapshot.phase]}
+              </span>
+              {stop ? (
+                <button type="button" className="lattice-send-button is-stop" aria-label="Stop agent" title="Stop agent" onClick={onCancel}>
+                  <Icon name="stop" size={14} />
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="lattice-send-button"
+                  aria-label="Send prompt"
+                  title="Send prompt"
+                  disabled={!draft.trim() || busy}
+                  onClick={send}
+                >
+                  <Icon name="send" size={15} />
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AgentHistoryPopover({
   snapshot,
   onClose,
   onOpenThread,
@@ -749,187 +953,88 @@ function AgentHistoryDialog({
   const [tab, setTab] = useState<"threads" | "changes">("threads");
   const [query, setQuery] = useState("");
   const needle = query.trim().toLowerCase();
-  const threads = snapshot.threads.filter(
-    (thread) =>
-      !needle ||
-      thread.title.toLowerCase().includes(needle) ||
-      thread.agentId.toLowerCase().includes(needle),
-  );
-  const turns = snapshot.turns.filter((turn) =>
-    !needle
-      ? true
-      : turn.prompt.toLowerCase().includes(needle) ||
-        turn.threadTitle.toLowerCase().includes(needle) ||
-        turn.changes.some((change) => change.path.toLowerCase().includes(needle)),
-  );
+  const threads = snapshot.threads.filter((thread) => !needle || thread.title.toLowerCase().includes(needle));
+  const turns = snapshot.turns.filter((turn) => !needle || turn.prompt.toLowerCase().includes(needle) || turn.threadTitle.toLowerCase().includes(needle));
 
   return (
-    <div className="agent-model-overlay" role="presentation" onMouseDown={onClose}>
-      <section
-        className="agent-model-dialog agent-history-dialog"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Agent session history"
-        onMouseDown={(event) => event.stopPropagation()}
-      >
-        <header className="agent-model-dialog-header">
+    <div className="lattice-history-layer" onMouseDown={onClose}>
+      <section className="lattice-history-popover" aria-label="Agent history" onMouseDown={(event) => event.stopPropagation()}>
+        <header className="lattice-history-header">
           <div>
-            <strong>Agent history</strong>
-            <span>Resume a conversation or review files changed by a turn.</span>
+            <strong>History</strong>
+            <span>{snapshot.threads.length} threads</span>
           </div>
-          <button
-            type="button"
-            className="agent-icon-button"
-            aria-label="Close history"
-            onClick={onClose}
-          >
+          <button type="button" className="lattice-icon-button" aria-label="Close history" onClick={onClose}>
             <Icon name="close" size={14} />
           </button>
         </header>
-        <div className="agent-history-tabs">
-          <button
-            type="button"
-            data-active={tab === "threads" || undefined}
-            onClick={() => setTab("threads")}
-          >
-            <Icon name="history" size={13} />
-            Threads
-            <span>{snapshot.threads.length}</span>
+        <div className="lattice-history-tabs" role="tablist">
+          <button type="button" role="tab" aria-selected={tab === "threads"} data-active={tab === "threads" || undefined} onClick={() => setTab("threads")}>
+            Threads <span>{snapshot.threads.length}</span>
           </button>
-          <button
-            type="button"
-            data-active={tab === "changes" || undefined}
-            onClick={() => setTab("changes")}
-          >
-            <Icon name="diff" size={13} />
-            Changes
-            <span>{snapshot.turns.length}</span>
+          <button type="button" role="tab" aria-selected={tab === "changes"} data-active={tab === "changes" || undefined} onClick={() => setTab("changes")}>
+            Changes <span>{snapshot.turns.length}</span>
           </button>
         </div>
-        <div className="agent-model-dialog-tools">
-          <label className="agent-model-search is-dialog">
-            <Icon name="search" size={13} />
-            <input
-              value={query}
-              aria-label="Search agent history"
-              placeholder={tab === "threads" ? "Search threads…" : "Search changes…"}
-              onChange={(event) => setQuery(event.target.value)}
-              autoFocus
-            />
-          </label>
-        </div>
-        <div className="agent-history-list">
+        <label className="lattice-picker-search is-history">
+          <Icon name="search" size={13} />
+          <input
+            value={query}
+            aria-label="Search history"
+            placeholder={tab === "threads" ? "Search threads…" : "Search changes…"}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </label>
+        <div className="lattice-history-list">
           {tab === "threads" ? (
-            threads.length > 0 ? (
-              threads.map((thread) => (
-                <div
-                  className="agent-history-thread"
-                  data-current={thread.id === snapshot.threadId || undefined}
-                  key={thread.id}
-                >
-                  <button
-                    type="button"
-                    className="agent-history-thread-main"
-                    onClick={() => onOpenThread(thread.id)}
-                  >
-                    <span className="agent-history-title">{thread.title}</span>
-                    <span className="agent-history-meta">
-                      <span>{thread.agentId === "opencode" ? "OpenCode" : "Codex"}</span>
-                      <span>{historyTime(thread.updatedAt)}</span>
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    className="agent-history-delete"
-                    aria-label={`Delete ${thread.title}`}
-                    title="Delete thread"
-                    onClick={() => onDeleteThread(thread.id)}
-                  >
-                    <Icon name="trash" size={13} />
-                  </button>
-                </div>
-              ))
-            ) : (
-              <div className="agent-history-empty">
-                <Icon name="history" size={20} />
-                <strong>No saved threads yet</strong>
-                <span>Your first completed conversation will appear here.</span>
-              </div>
-            )
-          ) : turns.length > 0 ? (
-            turns.map((turn) => (
-              <article className="agent-history-turn" key={turn.id}>
-                <button
-                  type="button"
-                  className="agent-history-turn-head"
-                  onClick={() => onOpenThread(turn.threadId)}
-                >
-                  <span className="agent-history-title">{turn.prompt}</span>
-                  <span className="agent-history-meta">
-                    <span>{turn.threadTitle}</span>
-                    <span>{historyTime(turn.createdAt)}</span>
+            threads.length > 0 ? threads.map((thread) => (
+              <div className="lattice-history-row" data-current={thread.id === snapshot.threadId || undefined} key={thread.id}>
+                <button type="button" className="lattice-history-row-main" onClick={() => onOpenThread(thread.id)}>
+                  <span className="lattice-history-title">{thread.title}</span>
+                  <span className="lattice-history-meta">
+                    <span>{AGENT_LABEL[thread.agentId]}</span>
+                    <span>{formatHistoryTime(thread.updatedAt)}</span>
                   </span>
                 </button>
-                {turn.changes.length > 0 ? (
-                  <>
-                    <div className="agent-history-turn-actions">
-                      <button
-                        type="button"
-                        onClick={() => onOpenTurnDiffs(turn.id)}
-                      >
-                        <Icon name="diff" size={12} />
-                        Open all diffs
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => onRestoreTurn(turn.id)}
-                      >
-                        Restore turn
-                      </button>
-                    </div>
-                    <div className="agent-history-files">
+                <button
+                  type="button"
+                  className="lattice-history-delete"
+                  aria-label={`Delete ${thread.title}`}
+                  title="Delete thread"
+                  onClick={() => onDeleteThread(thread.id)}
+                >
+                  <Icon name="trash" size={13} />
+                </button>
+              </div>
+            )) : <p className="lattice-history-empty">No saved threads yet.</p>
+          ) : turns.length > 0 ? turns.map((turn) => (
+            <article className="lattice-history-turn" key={turn.id}>
+              <button type="button" className="lattice-history-turn-head" onClick={() => onOpenThread(turn.threadId)}>
+                <span className="lattice-history-title">{turn.prompt}</span>
+                <span className="lattice-history-meta">
+                  <span>{turn.threadTitle}</span>
+                  <span>{formatHistoryTime(turn.createdAt)}</span>
+                </span>
+              </button>
+              {turn.changes.length > 0 ? (
+                <>
+                  <div className="lattice-history-turn-actions">
+                    <button type="button" onClick={() => onOpenTurnDiffs(turn.id)}>Open all diffs</button>
+                    <button type="button" onClick={() => onRestoreTurn(turn.id)}>Restore</button>
+                  </div>
+                  <div className="lattice-history-files">
                     {turn.changes.map((change) => (
-                      <button
-                        type="button"
-                        className="agent-history-file"
-                        key={`${turn.id}:${change.path}`}
-                        title="Review changes in the file"
-                        onClick={() => onOpenDiff(turn.id, change.path)}
-                      >
-                        <span className={`agent-change-mark is-${change.kind}`}>
-                          {change.kind === "created" ? "+" : change.kind === "deleted" ? "−" : "±"}
-                        </span>
-                        <span className="agent-history-file-path">{change.path}</span>
-                        <span className="agent-history-stats">
-                          <span>+{change.additions}</span>
-                          <span>−{change.deletions}</span>
-                        </span>
-                        <Icon name="diff" size={12} />
+                      <button type="button" className="lattice-history-file" key={`${turn.id}:${change.path}`} onClick={() => onOpenDiff(turn.id, change.path)}>
+                        <span>{shortPath(change.path)}</span>
+                        <span className="lattice-history-stats"><span>+{change.additions}</span><span>−{change.deletions}</span></span>
                       </button>
                     ))}
-                    </div>
-                  </>
-                ) : (
-                  <p className="agent-history-no-files">No text-file changes recorded.</p>
-                )}
-              </article>
-            ))
-          ) : (
-            <div className="agent-history-empty">
-              <Icon name="diff" size={20} />
-              <strong>No changes yet</strong>
-              <span>Completed turns with file edits appear here.</span>
-            </div>
-          )}
+                  </div>
+                </>
+              ) : <p className="lattice-history-no-files">No text-file changes recorded.</p>}
+            </article>
+          )) : <p className="lattice-history-empty">No changes yet.</p>}
         </div>
-        <footer className="agent-model-dialog-footer">
-          <span>
-            {snapshot.threads.length} saved thread{snapshot.threads.length === 1 ? "" : "s"}
-          </span>
-          <button type="button" className="agent-button quiet" onClick={onClose}>
-            Close
-          </button>
-        </footer>
       </section>
     </div>
   );
@@ -939,178 +1044,133 @@ export function AgentView(props: AgentViewProps) {
   const { snapshot } = props;
   const [draft, setDraft] = useState("");
   const [historyOpen, setHistoryOpen] = useState(false);
-  const textarea = useRef<HTMLTextAreaElement>(null);
-  const list = useRef<HTMLDivElement>(null);
-  const busy =
-    snapshot.phase === "running" ||
-    snapshot.phase === "waiting_permission" ||
-    snapshot.phase === "authentication_required";
+  const [composerHeight, setComposerHeight] = useState(0);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const stackRef = useRef<HTMLDivElement>(null);
+  const nearBottomRef = useRef(true);
+  const busy = snapshot.phase === "running" || snapshot.phase === "waiting_permission" || snapshot.phase === "authentication_required";
+  const pendingPermission = useMemo(() => {
+    for (let index = snapshot.entries.length - 1; index >= 0; index -= 1) {
+      const entry = snapshot.entries[index];
+      if (entry?.type === "permission" && !entry.resolvedOptionId) return entry;
+    }
+    return null;
+  }, [snapshot.entries]);
+  const visibleEntries = useMemo(
+    () => snapshot.entries.filter((entry) => !(entry.type === "permission" && !entry.resolvedOptionId)),
+    [snapshot.entries],
+  );
 
   useEffect(() => {
-    const node = textarea.current;
+    const node = textareaRef.current;
     if (!node) return;
     node.style.height = "0px";
-    node.style.height = `${Math.min(node.scrollHeight, 160)}px`;
+    node.style.height = `${Math.min(node.scrollHeight, 200)}px`;
   }, [draft]);
 
-  useEffect(() => {
-    const node = list.current;
+  useLayoutEffect(() => {
+    const node = stackRef.current;
     if (!node) return;
-    node.scrollTop = node.scrollHeight;
+    const measure = () => setComposerHeight(Math.ceil(node.getBoundingClientRect().height));
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
+  useLayoutEffect(() => {
+    const node = scrollRef.current;
+    if (!node) return;
+    if (nearBottomRef.current) node.scrollTop = node.scrollHeight;
   }, [snapshot.revision]);
 
-  const send = () => {
+  const send = useCallback(() => {
     const text = draft.trim();
     if (!text || busy) return;
     setDraft("");
     props.onSend(text);
-    textarea.current?.focus();
+    textareaRef.current?.focus();
+  }, [busy, draft, props]);
+
+  const onScroll = () => {
+    const node = scrollRef.current;
+    if (!node) return;
+    nearBottomRef.current = node.scrollHeight - node.scrollTop - node.clientHeight < 80;
   };
 
-  const onComposerKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) {
-      return;
-    }
-    event.preventDefault();
-    send();
+  const onStarter = (prompt: string) => {
+    setDraft(prompt);
+    requestAnimationFrame(() => textareaRef.current?.focus());
   };
 
   return (
-    <main className="agent-shell" aria-label="LaTeX Comfort Agent">
-      <header className="agent-header">
-        <div className="agent-header-title">
-          <span className="agent-thread-title">{snapshot.title}</span>
-          <span className="agent-agent-pill">{snapshot.agentLabel}</span>
+    <main
+      className="lattice-agent-shell"
+      aria-label="LaTeX Comfort Agent"
+      style={{ "--agent-composer-height": `${composerHeight}px` } as CSSProperties}
+    >
+      <header className="lattice-agent-header">
+        <div className="lattice-agent-heading">
+          <span className="lattice-agent-title">{snapshot.title}</span>
+          <span className="lattice-agent-badge">{snapshot.agentLabel}</span>
         </div>
-        <div className="agent-header-actions">
-          <button
-            type="button"
-            className="agent-icon-button"
-            aria-label="Session history"
-            title="Session history"
-            onClick={() => setHistoryOpen(true)}
-          >
+        <div className="lattice-agent-header-actions">
+          <button type="button" className="lattice-icon-button" aria-label="Session history" title="Session history" onClick={() => setHistoryOpen((value) => !value)}>
             <Icon name="history" size={15} />
           </button>
-          <button
-            type="button"
-            className="agent-icon-button"
-            aria-label="New thread"
-            title="New thread"
-            onClick={() => props.onNewThread()}
-          >
+          <button type="button" className="lattice-icon-button" aria-label="New thread" title="New thread" onClick={props.onNewThread}>
             <Icon name="plus" size={15} />
           </button>
-          <button
-            type="button"
-            className="agent-icon-button"
-            aria-label="Agent settings"
-            title="Agent settings"
-            onClick={() => props.onOpenSettings()}
-          >
+          <button type="button" className="lattice-icon-button" aria-label="Agent settings" title="Agent settings" onClick={props.onOpenSettings}>
             <Icon name="settings" size={15} />
           </button>
         </div>
       </header>
 
-      <div className="agent-scroll" ref={list}>
-        {snapshot.entries.length === 0 ? (
-          <EmptyState
-            onSend={(text) => {
-              if (busy) return;
-              props.onSend(text);
-            }}
-            agentId={snapshot.agentId}
-            onSelectAgent={props.onSelectAgent}
-          />
-        ) : (
-          <div className="agent-timeline">
-            {snapshot.entries.map((entry) => (
-              <EntryView
-                entry={entry}
-                key={entry.id}
-                onResolvePermission={props.onResolvePermission}
-                onOpenLocation={props.onOpenLocation}
-              />
-            ))}
-            {snapshot.phase === "running" ? (
-              <div className="agent-running" role="status">
-                <span className="agent-running-dots"><i /><i /><i /></span>
-                {snapshot.agentLabel} is working
-              </div>
-            ) : null}
-          </div>
-        )}
-      </div>
-
-      <footer className="agent-composer-wrap">
-        <AgentErrorBanner
-          snapshot={snapshot}
-          onOpenSettings={props.onOpenSettings}
-        />
-        <AuthBanner snapshot={snapshot} onAuthenticate={props.onAuthenticate} />
-        {snapshot.context ? (
-          <div className="agent-context-chip" title={snapshot.context.selectedText}>
-            <Icon name="file" size={12} />
-            <span>{snapshot.context.label}</span>
-          </div>
-        ) : null}
-        <div className="agent-composer" data-busy={busy || undefined}>
-          <textarea
-            ref={textarea}
-            rows={1}
-            aria-label="Prompt"
-            placeholder="Ask the agent to work on this paper..."
-            value={draft}
-            onChange={(event) => setDraft(event.target.value)}
-            onKeyDown={onComposerKeyDown}
-          />
-          {snapshot.phase === "running" ||
-          snapshot.phase === "waiting_permission" ? (
-            <button
-              type="button"
-              className="agent-send-button is-stop"
-              aria-label="Stop agent"
-              title="Stop agent"
-              onClick={() => props.onCancel()}
-            >
-              <Icon name="stop" size={15} />
-            </button>
+      <div className="lattice-agent-body">
+        <div className="lattice-transcript-scroll" ref={scrollRef} onScroll={onScroll}>
+          {snapshot.entries.length === 0 ? (
+            snapshot.phase === "starting" ? (
+              <AgentLoadingSkeleton />
+            ) : (
+              <AgentEmptyThread context={snapshot.context} bottomInsetPx={composerHeight} onStarter={onStarter} />
+            )
           ) : (
-            <button
-              type="button"
-              className="agent-send-button"
-              aria-label="Send prompt"
-              title="Send prompt"
-              disabled={!draft.trim() || busy}
-              onClick={send}
-            >
-              <Icon name="send" size={16} />
-            </button>
+            <div className="lattice-timeline">
+              {visibleEntries.map((entry) => (
+                <AgentEntry key={entry.id} entry={entry} onOpenLocation={props.onOpenLocation} />
+              ))}
+              {snapshot.phase === "running" ? (
+                <div className="lattice-running-row" role="status">
+                  <Icon name="spinner" size={13} className="lattice-spin" />
+                  <span>{snapshot.agentLabel} is working</span>
+                </div>
+              ) : null}
+            </div>
           )}
         </div>
-        <div className="agent-composer-footer">
-          <ModelPicker
-            options={snapshot.configOptions}
-            visibleModels={snapshot.visibleModels}
-            phase={snapshot.phase}
-            onChange={props.onSelectConfig}
-            onSetVisibleModels={props.onSetVisibleModels}
-          />
-          <span className="agent-phase" data-phase={snapshot.phase}>
-            {snapshot.phase === "running" || snapshot.phase === "starting" ? (
-              <Icon name="spinner" size={12} />
-            ) : snapshot.phase === "failed" ? (
-              <Icon name="error" size={12} />
-            ) : snapshot.phase === "waiting_permission" ? (
-              <span className="agent-phase-dot" />
-            ) : null}
-            {PHASE_LABEL[snapshot.phase]}
-          </span>
-        </div>
-      </footer>
+
+        <AgentComposer
+          snapshot={snapshot}
+          draft={draft}
+          setDraft={setDraft}
+          send={send}
+          stackRef={stackRef}
+          textareaRef={textareaRef}
+          pendingPermission={pendingPermission}
+          onCancel={props.onCancel}
+          onResolvePermission={props.onResolvePermission}
+          onSelectAgent={props.onSelectAgent}
+          onSelectConfig={props.onSelectConfig}
+          onAuthenticate={props.onAuthenticate}
+          onOpenSettings={props.onOpenSettings}
+        />
+      </div>
+
       {historyOpen ? (
-        <AgentHistoryDialog
+        <AgentHistoryPopover
           snapshot={snapshot}
           onClose={() => setHistoryOpen(false)}
           onOpenThread={(threadId) => {
@@ -1118,9 +1178,9 @@ export function AgentView(props: AgentViewProps) {
             props.onOpenThread(threadId);
           }}
           onDeleteThread={props.onDeleteThread}
-          onOpenDiff={(turnId, filePath) => {
+          onOpenDiff={(turnId, path) => {
             setHistoryOpen(false);
-            props.onOpenDiff(turnId, filePath);
+            props.onOpenDiff(turnId, path);
           }}
           onOpenTurnDiffs={(turnId) => {
             setHistoryOpen(false);

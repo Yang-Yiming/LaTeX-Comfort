@@ -51,9 +51,6 @@ export function AgentApp() {
       onSelectConfig={(configId, value) =>
         vscode.postMessage({ type: "agentSelectConfig", configId, value })
       }
-      onSetVisibleModels={(values) =>
-        vscode.postMessage({ type: "agentSetVisibleModels", values })
-      }
       onResolvePermission={(permissionId, optionId) =>
         vscode.postMessage({
           type: "agentResolvePermission",

@@ -41,6 +41,12 @@ if (!notice.includes("Apache License, Version 2.0")) {
 if (!notice.includes("eb523a879b10f443b6d6479959eae12750bf168c")) {
   failures.push("NOTICE must record the upstream Lattice revision");
 }
+if (!notice.includes("software adapted from Synara")) {
+  failures.push("NOTICE must retain Synara's attribution");
+}
+if (!notice.includes("a22a21a4be53c751d2d05c79c6b0343c1f2afdc9")) {
+  failures.push("NOTICE must record the upstream Synara revision");
+}
 
 for (const pkg of packages) {
   const path = `packages/${pkg}/NOTICE`;

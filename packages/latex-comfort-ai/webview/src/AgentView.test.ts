@@ -46,7 +46,6 @@ function render(value: AgentUiSnapshot): string {
       onDeleteThread: noop,
       onSelectAgent: noop,
       onSelectConfig: noop,
-      onSetVisibleModels: noop,
       onResolvePermission: noop,
       onAuthenticate: noop,
       onOpenDiff: noop,
@@ -59,15 +58,18 @@ function render(value: AgentUiSnapshot): string {
 }
 
 describe("AgentView", () => {
-  it("renders the Lattice-style new-thread empty state and model control", () => {
+  it("renders Lattice's new-thread starters, composer, and model control", () => {
     const html = render(snapshot());
 
+    expect(html).toContain("lattice-empty-thread");
     expect(html).toContain("Work on this paper");
-    expect(html).toContain("Fix compile errors");
-    expect(html).toContain("Review current section");
+    expect(html).toContain("Polish");
+    expect(html).toContain("Revise");
+    expect(html).toContain("Proofread");
+    expect(html).toContain("Check references");
     expect(html).toContain("Model One");
     expect(html).toContain("OpenCode");
-    expect(html).toContain("Ask the agent");
+    expect(html).toContain("Do anything in Lattice");
   });
 
   it("renders messages, tools, and an inline permission card", () => {
@@ -115,6 +117,7 @@ describe("AgentView", () => {
     expect(html).toContain("Fix the introduction");
     expect(html).toContain("I will update the paragraph.");
     expect(html).toContain("Edit main.tex");
+    expect(html).toContain("Approve this tool call?");
     expect(html).toContain("Allow once");
     expect(html).toContain("Reject");
     expect(html).toContain("Waiting for permission");
