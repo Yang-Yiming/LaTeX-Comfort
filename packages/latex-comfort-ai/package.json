@@ -19,6 +19,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
+    "@agentclientprotocol/sdk": "2.7.0",
     "@latex-comfort/shared": "workspace:*",
     "highlight.js": "~11.11.2",
     "lowlight": "^3.3.0",
