@@ -70,6 +70,12 @@ export function AgentApp() {
       onOpenDiff={(turnId, path) =>
         vscode.postMessage({ type: "agentOpenDiff", turnId, path })
       }
+      onOpenTurnDiffs={(turnId) =>
+        vscode.postMessage({ type: "agentOpenTurnDiffs", turnId })
+      }
+      onRestoreTurn={(turnId) =>
+        vscode.postMessage({ type: "agentRestoreTurn", turnId })
+      }
       onOpenLocation={(path, line) =>
         vscode.postMessage({
           type: "agentOpenLocation",

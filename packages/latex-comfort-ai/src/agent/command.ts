@@ -41,6 +41,9 @@ function isAbortError(error: unknown): boolean {
 
 function writeEvent(output: AgentOutput, event: AgentEvent): void {
   switch (event.type) {
+    case "user":
+      output.appendLine(`[user] ${event.text}`);
+      return;
     case "text":
       output.append(event.text);
       return;

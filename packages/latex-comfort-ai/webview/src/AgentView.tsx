@@ -31,6 +31,8 @@ export interface AgentViewProps {
   onResolvePermission(permissionId: string, optionId?: string): void;
   onAuthenticate(methodId?: string): void;
   onOpenDiff(turnId: string, path: string): void;
+  onOpenTurnDiffs(turnId: string): void;
+  onRestoreTurn(turnId: string): void;
   onOpenLocation(path: string, line?: number): void;
   onOpenSettings(): void;
 }
@@ -114,7 +116,7 @@ function Icon({
     case "plus":
       return <svg {...common}><path d="M8 3v10M3 8h10" /></svg>;
     case "settings":
-      return <svg {...common}><circle cx="8" cy="8" r="2.2" /><path d="M8 2.2v1.2M8 12.6v1.2M2.2 8h1.2M12.6 8h1.2M3.9 3.9l.9.9M11.2 11.2l.9.9M12.1 3.9l-.9.9M4.8 11.2l-.9.9" /></svg>;
+      return <svg {...common}><path d="M2.8 4.5h10.4M2.8 8h10.4M2.8 11.5h10.4" /><circle cx="5.5" cy="4.5" r="1.25" fill="currentColor" /><circle cx="10.5" cy="8" r="1.25" fill="currentColor" /><circle cx="6.8" cy="11.5" r="1.25" fill="currentColor" /></svg>;
     case "chevron":
       return <svg {...common}><path d="m5 6 3 3 3-3" /></svg>;
     case "send":
@@ -733,12 +735,16 @@ function AgentHistoryDialog({
   onOpenThread,
   onDeleteThread,
   onOpenDiff,
+  onOpenTurnDiffs,
+  onRestoreTurn,
 }: {
   snapshot: AgentUiSnapshot;
   onClose(): void;
   onOpenThread(threadId: string): void;
   onDeleteThread(threadId: string): void;
   onOpenDiff(turnId: string, path: string): void;
+  onOpenTurnDiffs(turnId: string): void;
+  onRestoreTurn(turnId: string): void;
 }) {
   const [tab, setTab] = useState<"threads" | "changes">("threads");
   const [query, setQuery] = useState("");
@@ -865,7 +871,23 @@ function AgentHistoryDialog({
                   </span>
                 </button>
                 {turn.changes.length > 0 ? (
-                  <div className="agent-history-files">
+                  <>
+                    <div className="agent-history-turn-actions">
+                      <button
+                        type="button"
+                        onClick={() => onOpenTurnDiffs(turn.id)}
+                      >
+                        <Icon name="diff" size={12} />
+                        Open all diffs
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onRestoreTurn(turn.id)}
+                      >
+                        Restore turn
+                      </button>
+                    </div>
+                    <div className="agent-history-files">
                     {turn.changes.map((change) => (
                       <button
                         type="button"
@@ -884,7 +906,8 @@ function AgentHistoryDialog({
                         <Icon name="diff" size={12} />
                       </button>
                     ))}
-                  </div>
+                    </div>
+                  </>
                 ) : (
                   <p className="agent-history-no-files">No text-file changes recorded.</p>
                 )}
@@ -1098,6 +1121,11 @@ export function AgentView(props: AgentViewProps) {
             setHistoryOpen(false);
             props.onOpenDiff(turnId, filePath);
           }}
+          onOpenTurnDiffs={(turnId) => {
+            setHistoryOpen(false);
+            props.onOpenTurnDiffs(turnId);
+          }}
+          onRestoreTurn={props.onRestoreTurn}
         />
       ) : null}
     </main>

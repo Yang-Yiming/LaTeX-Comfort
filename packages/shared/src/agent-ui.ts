@@ -124,6 +124,8 @@ export interface AgentUiThreadSummary {
   agentId: AgentUiAgentId;
   createdAt: number;
   updatedAt: number;
+  sessionId?: string;
+  remoteOnly?: boolean;
 }
 
 export interface AgentUiSnapshot {
@@ -173,5 +175,7 @@ export type AgentWebviewToHostMessage =
     }
   | { type: "agentAuthenticate"; methodId?: string }
   | { type: "agentOpenDiff"; turnId: string; path: string }
+  | { type: "agentOpenTurnDiffs"; turnId: string }
+  | { type: "agentRestoreTurn"; turnId: string }
   | { type: "agentOpenLocation"; path: string; line?: number }
   | { type: "agentOpenSettings" };

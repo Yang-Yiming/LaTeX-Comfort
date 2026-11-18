@@ -103,13 +103,16 @@ describe("mapSessionUpdate", () => {
     ]);
   });
 
-  it("ignores user echoes and unknown updates", () => {
+  it("maps replayed user messages and ignores unknown updates", () => {
     expect(
       mapSessionUpdate({
         sessionUpdate: "user_message_chunk",
+        messageId: "user-message-1",
         content: { type: "text", text: "Hello" },
       }),
-    ).toEqual([]);
+    ).toEqual([
+      { type: "user", messageId: "user-message-1", text: "Hello" },
+    ]);
     expect(
       mapSessionUpdate({
         sessionUpdate: "future_opencode_update",

@@ -50,6 +50,8 @@ function render(value: AgentUiSnapshot): string {
       onResolvePermission: noop,
       onAuthenticate: noop,
       onOpenDiff: noop,
+      onOpenTurnDiffs: noop,
+      onRestoreTurn: noop,
       onOpenLocation: noop,
       onOpenSettings: noop,
     }),

@@ -105,6 +105,20 @@ export function mapSessionUpdate(update: unknown): AgentEvent[] {
   if (!isRecord(update) || typeof update.sessionUpdate !== "string") return [];
 
   switch (update.sessionUpdate) {
+    case "user_message_chunk": {
+      const text = textContent(update.content);
+      return text
+        ? [
+            {
+              type: "user",
+              ...(typeof update.messageId === "string"
+                ? { messageId: update.messageId }
+                : {}),
+              text,
+            },
+          ]
+        : [];
+    }
     case "agent_message_chunk": {
       const text = textContent(update.content);
       return text

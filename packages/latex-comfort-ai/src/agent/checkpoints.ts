@@ -1,9 +1,17 @@
 import { createHash } from "node:crypto";
-import { access, mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import {
+  access,
+  mkdir,
+  readFile,
+  readdir,
+  unlink,
+  writeFile,
+} from "node:fs/promises";
 import nodePath from "node:path";
 import * as vscode from "vscode";
 import type { AgentUiChangeFile } from "@latex-comfort/shared";
 import type {
+  AgentRestoreResult,
   AgentTurnCheckpointService,
   AgentWorkspaceSnapshot,
 } from "./history-types";
@@ -263,6 +271,42 @@ export class AgentCheckpointService
       `${file.path} · Agent ${file.kind}`,
       { preview: false },
     );
+  }
+
+  async restoreTurn(turnId: string): Promise<AgentRestoreResult> {
+    const manifest = await this.readManifest(turnId);
+    if (!manifest) return { restored: 0, skipped: [] };
+    let restored = 0;
+    const skipped: string[] = [];
+    for (const file of manifest.files) {
+      const absolute = nodePath.resolve(manifest.root, file.path);
+      const relative = nodePath.relative(manifest.root, absolute);
+      if (relative.startsWith("..") || nodePath.isAbsolute(relative)) {
+        skipped.push(file.path);
+        continue;
+      }
+      const current = await readFile(absolute).catch(() => undefined);
+      const currentHash = current ? hashContent(current) : undefined;
+      if (currentHash !== file.afterHash) {
+        skipped.push(file.path);
+        continue;
+      }
+      if (file.beforeHash) {
+        const before = await readFile(this.contentPath(file.beforeHash)).catch(
+          () => undefined,
+        );
+        if (!before) {
+          skipped.push(file.path);
+          continue;
+        }
+        await mkdir(nodePath.dirname(absolute), { recursive: true });
+        await writeFile(absolute, before);
+      } else {
+        await unlink(absolute).catch(() => undefined);
+      }
+      restored += 1;
+    }
+    return { restored, skipped };
   }
 
   dispose(): void {

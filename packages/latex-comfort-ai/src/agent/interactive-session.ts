@@ -1,5 +1,6 @@
 import * as acp from "@agentclientprotocol/sdk";
 import { mapConfigOptions, mapSessionUpdate } from "./acp-events";
+import type { AgentRemoteSession } from "./history-types";
 import type {
   AgentAuthMethod,
   AgentConfigOption,
@@ -29,6 +30,7 @@ export interface InteractiveAcpSessionOptions {
   initialConfig?: Record<string, string>;
   preferredModel?: string;
   resumeSessionId?: string;
+  replayHistory?: boolean;
 }
 
 export interface InteractiveSessionStart {
@@ -90,6 +92,7 @@ export class InteractiveAcpSession {
   private promptRunning = false;
   private cancelRequested = false;
   private suppressReplayUpdates = false;
+  private replayHistoryUpdates = false;
   private readonly updateQueue: acp.SessionUpdate[] = [];
   private readonly updateWaiters: UpdateWaiter[] = [];
   private capabilities: InteractiveSessionStart["capabilities"] = {
@@ -157,6 +160,10 @@ export class InteractiveAcpSession {
       .onNotification(acp.methods.client.session.update, ({ params }) => {
         if (params.sessionId !== this.sessionId) return;
         if (this.suppressReplayUpdates) return;
+        if (this.replayHistoryUpdates) {
+          this.applyUpdate(params.update);
+          return;
+        }
         this.pushUpdate(params.update);
       });
 
@@ -284,6 +291,40 @@ export class InteractiveAcpSession {
       .catch(() => undefined);
   }
 
+  async listSessions(): Promise<AgentRemoteSession[]> {
+    const connection = this.connection;
+    if (!connection || !this.capabilities.list) return [];
+    const sessions: AgentRemoteSession[] = [];
+    let cursor: string | undefined;
+    do {
+      const response = await connection.agent.request(
+        acp.methods.agent.session.list,
+        {
+          cwd: this.options.cwd,
+          ...(cursor ? { cursor } : {}),
+        },
+      );
+      for (const session of response.sessions) {
+        if (session.cwd !== this.options.cwd) continue;
+        sessions.push({
+          sessionId: session.sessionId,
+          ...(session.title ? { title: session.title } : {}),
+          ...(session.updatedAt ? { updatedAt: session.updatedAt } : {}),
+        });
+      }
+      cursor = response.nextCursor ?? undefined;
+    } while (cursor);
+    return sessions;
+  }
+
+  async deleteSession(sessionId: string): Promise<void> {
+    const connection = this.connection;
+    if (!connection || !this.capabilities.delete) return;
+    await connection.agent.request(acp.methods.agent.session.delete, {
+      sessionId,
+    });
+  }
+
   async setConfigOption(
     configId: string,
     value: string,
@@ -363,7 +404,9 @@ export class InteractiveAcpSession {
       return true;
     }
     if (this.capabilities.load) {
-      this.suppressReplayUpdates = true;
+      const replay = this.options.replayHistory === true;
+      this.suppressReplayUpdates = !replay;
+      this.replayHistoryUpdates = replay;
       try {
         const response = await connection.agent.request(
           acp.methods.agent.session.load,
@@ -377,6 +420,7 @@ export class InteractiveAcpSession {
         return true;
       } finally {
         this.suppressReplayUpdates = false;
+        this.replayHistoryUpdates = false;
       }
     }
     return false;
@@ -412,6 +456,7 @@ export class InteractiveAcpSession {
 
   private applyUpdate(update: acp.SessionUpdate): void {
     for (const event of mapSessionUpdate(update)) {
+      if (event.type === "user" && !this.replayHistoryUpdates) continue;
       if (event.type === "config") this.configOptions = event.options;
       this.options.onEvent(event);
     }

@@ -21,6 +21,7 @@ import {
   type AgentPanelState,
 } from "./panel-state";
 import type {
+  AgentRemoteSession,
   AgentThreadRepository,
   AgentTurnCheckpointService,
   AgentWorkspaceSnapshot,
@@ -58,6 +59,8 @@ export interface AgentRuntime {
     value: string,
   ): Promise<AgentConfigOption[]>;
   dispose(): Promise<void>;
+  listSessions?(): Promise<AgentRemoteSession[]>;
+  deleteSession?(sessionId: string): Promise<void>;
 }
 
 export interface AgentRuntimeDependencies {
@@ -65,6 +68,7 @@ export interface AgentRuntimeDependencies {
   cwd: string;
   preferredModel?: string;
   resumeSessionId?: string;
+  replayHistory?: boolean;
   onEvent(event: AgentEvent): void;
   requestPermission(request: AgentPermissionRequest): Promise<string | undefined>;
   authenticate(request: AgentAuthRequest): Promise<AgentAuthDecision>;
@@ -136,8 +140,11 @@ export class AgentPanelController {
   private threadId: string;
   private threadCreatedAt: number;
   private threadSessionId: string | undefined;
+  private localThreads: AgentUiThreadSummary[] = [];
+  private remoteSessions: AgentRemoteSession[] = [];
   private threads: AgentUiThreadSummary[] = [];
   private turns: AgentUiTurnSummary[] = [];
+  private replayHistoryOnStart = false;
   private threadsLoaded = false;
   private pendingTurn:
     | {
@@ -207,6 +214,7 @@ export class AgentPanelController {
       throw new Error("Start a new thread before switching agents.");
     }
     await this.stopRuntime();
+    this.remoteSessions = [];
     this.resetThread(agentId);
     this.emit();
     void this.prepare();
@@ -416,25 +424,58 @@ export class AgentPanelController {
 
   async openThread(threadId: string): Promise<void> {
     if (threadId === this.threadId) return;
-    const thread = await this.options.threadStore?.load(threadId);
-    if (!thread) return;
+    const remote = threadId.startsWith("remote:")
+      ? this.remoteSessions.find(
+          (session) => session.sessionId === threadId.slice(7),
+        )
+      : undefined;
+    const thread = remote
+      ? undefined
+      : await this.options.threadStore?.load(threadId);
+    if (!remote && !thread) return;
     await this.stopRuntime();
-    this.agentId = thread.agentId;
-    this.threadId = thread.id;
-    this.threadCreatedAt = thread.createdAt;
-    this.threadSessionId = thread.sessionId;
-    this.turns = thread.turns;
-    this.state = {
-      ...this.freshState(thread.agentId),
-      title: thread.title,
-      entries: thread.entries,
-      ...(thread.model ? { currentModel: thread.model } : {}),
-    };
+    if (thread) {
+      this.agentId = thread.agentId;
+      this.threadId = thread.id;
+      this.threadCreatedAt = thread.createdAt;
+      this.threadSessionId = thread.sessionId;
+      this.turns = thread.turns;
+      this.state = {
+        ...this.freshState(thread.agentId),
+        title: thread.title,
+        entries: thread.entries,
+        ...(thread.model ? { currentModel: thread.model } : {}),
+      };
+    } else if (remote) {
+      const updatedAt = remote.updatedAt
+        ? Date.parse(remote.updatedAt) || Date.now()
+        : Date.now();
+      this.threadId = threadId;
+      this.threadCreatedAt = updatedAt;
+      this.threadSessionId = remote.sessionId;
+      this.turns = [];
+      this.state = {
+        ...this.freshState(this.agentId),
+        title: remote.title?.trim() || "Remote agent session",
+        entries: [],
+      };
+      this.replayHistoryOnStart = true;
+    }
     this.emit();
     void this.prepare();
   }
 
   async deleteThread(threadId: string): Promise<void> {
+    if (threadId.startsWith("remote:")) {
+      const sessionId = threadId.slice(7);
+      await this.runtime?.deleteSession?.(sessionId).catch(() => undefined);
+      this.remoteSessions = this.remoteSessions.filter(
+        (session) => session.sessionId !== sessionId,
+      );
+      this.rebuildThreads();
+      this.emit();
+      return;
+    }
     await this.options.threadStore?.delete(threadId);
     if (threadId === this.threadId) {
       await this.newThread();
@@ -445,6 +486,23 @@ export class AgentPanelController {
 
   async openDiff(turnId: string, filePath: string): Promise<void> {
     await this.options.checkpoints?.openDiff(turnId, filePath);
+  }
+
+  async openTurnDiffs(turnId: string): Promise<void> {
+    const turn = this.turns.find((candidate) => candidate.id === turnId);
+    if (!turn) return;
+    for (const file of turn.changes.slice(0, 10)) {
+      await this.options.checkpoints?.openDiff(turnId, file.path);
+    }
+  }
+
+  async restoreTurn(turnId: string) {
+    return (
+      (await this.options.checkpoints?.restoreTurn(turnId)) ?? {
+        restored: 0,
+        skipped: [],
+      }
+    );
   }
 
   async releaseIdleSession(): Promise<void> {
@@ -515,8 +573,48 @@ export class AgentPanelController {
     const cwd =
       this.options.workspaceDirectory() ?? this.options.activeFileDirectory();
     if (!cwd) return;
-    this.threads = await this.options.threadStore.list(cwd);
+    this.localThreads = await this.options.threadStore.list(cwd);
+    this.rebuildThreads();
     this.threadsLoaded = true;
+  }
+
+  private async syncRemoteSessions(runtime: AgentRuntime): Promise<void> {
+    if (!runtime.listSessions) return;
+    try {
+      this.remoteSessions = await runtime.listSessions();
+      this.rebuildThreads();
+      this.emit();
+    } catch {
+      // Session listing is an enhancement; local history remains usable.
+    }
+  }
+
+  private rebuildThreads(): void {
+    const sessionIds = new Set(
+      [
+        ...this.localThreads.map((thread) => thread.sessionId),
+        this.threadSessionId,
+      ].filter((value): value is string => Boolean(value)),
+    );
+    const remote: AgentUiThreadSummary[] = this.remoteSessions
+      .filter((session) => !sessionIds.has(session.sessionId))
+      .map((session) => {
+        const updatedAt = session.updatedAt
+          ? Date.parse(session.updatedAt) || Date.now()
+          : Date.now();
+        return {
+          id: `remote:${session.sessionId}`,
+          title: session.title?.trim() || "Remote agent session",
+          agentId: this.agentId,
+          createdAt: updatedAt,
+          updatedAt,
+          sessionId: session.sessionId,
+          remoteOnly: true,
+        };
+      });
+    this.threads = [...this.localThreads, ...remote].sort(
+      (a, b) => b.updatedAt - a.updatedAt,
+    );
   }
 
   private resetThread(agentId: AgentId): void {
@@ -525,6 +623,7 @@ export class AgentPanelController {
     this.threadCreatedAt = now;
     this.threadSessionId = undefined;
     this.turns = [];
+    this.replayHistoryOnStart = false;
     this.agentId = agentId;
     const model = this.selectedModels.get(agentId);
     const previousConfig = this.state.configOptions;
@@ -587,6 +686,7 @@ export class AgentPanelController {
         ...(this.threadSessionId
           ? { resumeSessionId: this.threadSessionId }
           : {}),
+        ...(this.replayHistoryOnStart ? { replayHistory: true } : {}),
         onEvent: (event) => {
           this.state = reduceAgentEvent(this.state, event);
           this.emit();
@@ -598,6 +698,7 @@ export class AgentPanelController {
         const started = await runtime.start();
         this.runtime = runtime;
         this.threadSessionId = started.sessionId;
+        this.replayHistoryOnStart = false;
         if (started.configOptions.length > 0) {
           this.state = reduceAgentEvent(this.state, {
             type: "config",
@@ -633,6 +734,7 @@ export class AgentPanelController {
         }
         this.emit();
         if (this.state.entries.length > 0) void this.persistThread();
+        void this.syncRemoteSessions(runtime);
         return runtime;
       })
       .finally(() => {

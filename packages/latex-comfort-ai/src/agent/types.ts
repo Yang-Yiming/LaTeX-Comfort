@@ -31,6 +31,7 @@ export interface AgentConfigOption {
 }
 
 export type AgentEvent =
+  | { type: "user"; messageId?: string; text: string }
   | { type: "text"; messageId?: string; text: string }
   | { type: "thinking"; messageId?: string; text: string }
   | {

@@ -144,6 +144,20 @@ export function reduceAgentEvent(
   event: AgentEvent,
 ): AgentPanelState {
   switch (event.type) {
+    case "user": {
+      const id = event.messageId ? `message:${event.messageId}` : `user-replay-${state.revision + 1}`;
+      return update(state, {
+        entries: [
+          ...state.entries,
+          {
+            type: "user",
+            id,
+            at: state.now(),
+            text: event.text,
+          },
+        ],
+      });
+    }
     case "text": {
       const id = event.messageId ?? state.fallbackAssistantId;
       const existing = entryById(state.entries, id);

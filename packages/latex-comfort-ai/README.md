@@ -24,7 +24,12 @@ Saved threads are stored locally and can be reopened from the history button.
 Each completed turn records the text files it changed. Open **History → Changes**
 and choose a file to inspect it in VS Code's native diff editor. When the agent
 supports ACP `session/resume` or `session/load`, reopening a thread also restores
-the agent-side conversation.
+the agent-side conversation. Agent sessions listed by ACP but not saved locally
+appear as remote threads and are loaded on demand.
+
+Each turn can open all of its file diffs or restore the files it changed. Restore
+is fail-closed: a file modified after the agent turn is skipped rather than
+overwritten.
 
 The panel uses your locally installed and authenticated CLI agents. OpenCode is
 started with `opencode acp`; Codex uses `codex-acp` and the configured Codex

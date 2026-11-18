@@ -171,7 +171,9 @@ Included:
 - one active thread;
 - persistent multi-turn ACP session;
 - local saved thread history with ACP resume/load when available;
-- per-turn workspace checkpoints and native VS Code file diffs;
+- ACP session listing merged into the local thread history;
+- per-turn workspace checkpoints, native VS Code file diffs, multi-diff opening,
+  and fail-closed turn restore;
 - Agent panel with empty state and conversation timeline;
 - streaming text and thinking;
 - tool cards;
@@ -184,9 +186,8 @@ Included:
 Deferred:
 
 - multiple concurrent threads;
-- ACP session list;
-- thread restore/undo;
-- multi-file native diff orchestration;
+- richer conflict resolution during restore;
+- a single multi-file diff editor;
 - multi-agent parallel execution;
 - sidebar-specific composition.
 

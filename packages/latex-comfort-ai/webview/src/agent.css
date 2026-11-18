@@ -1322,3 +1322,28 @@ summary:focus-visible {
   font-size: 10.5px;
   line-height: 1.45;
 }
+
+.agent-history-turn-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 5px;
+  padding: 0 8px 5px;
+}
+
+.agent-history-turn-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 7px;
+  border: 1px solid var(--agent-border-soft);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--agent-muted);
+  cursor: pointer;
+  font-size: 10px;
+}
+
+.agent-history-turn-actions button:hover {
+  background: var(--agent-hover);
+  color: var(--agent-ink);
+}

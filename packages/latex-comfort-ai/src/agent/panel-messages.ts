@@ -85,6 +85,14 @@ export function parseAgentWebviewMessage(
             path: value.path,
           }
         : null;
+    case "agentOpenTurnDiffs":
+      return nonEmpty(value.turnId)
+        ? { type: "agentOpenTurnDiffs", turnId: value.turnId }
+        : null;
+    case "agentRestoreTurn":
+      return nonEmpty(value.turnId)
+        ? { type: "agentRestoreTurn", turnId: value.turnId }
+        : null;
     case "agentOpenLocation":
       return nonEmpty(value.path) &&
         (value.line === undefined ||

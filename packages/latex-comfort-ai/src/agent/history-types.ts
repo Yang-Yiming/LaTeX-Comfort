@@ -19,6 +19,12 @@ export interface StoredAgentThread {
   turns: AgentUiTurnSummary[];
 }
 
+export interface AgentRemoteSession {
+  sessionId: string;
+  title?: string;
+  updatedAt?: string;
+}
+
 export interface AgentThreadRepository {
   list(workspacePath: string): Promise<AgentUiThreadSummary[]>;
   load(threadId: string): Promise<StoredAgentThread | undefined>;
@@ -31,6 +37,11 @@ export interface AgentWorkspaceSnapshot {
   files: Record<string, string>;
 }
 
+export interface AgentRestoreResult {
+  restored: number;
+  skipped: string[];
+}
+
 export interface AgentTurnCheckpointService {
   capture(workspaceRoot: string): Promise<AgentWorkspaceSnapshot>;
   complete(
@@ -38,4 +49,5 @@ export interface AgentTurnCheckpointService {
     before: AgentWorkspaceSnapshot,
   ): Promise<AgentUiChangeFile[]>;
   openDiff(turnId: string, path: string): Promise<void>;
+  restoreTurn(turnId: string): Promise<AgentRestoreResult>;
 }

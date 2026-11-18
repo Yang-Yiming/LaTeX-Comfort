@@ -22,6 +22,7 @@ export async function createInteractiveRuntime(
     ...(dependencies.resumeSessionId
       ? { resumeSessionId: dependencies.resumeSessionId }
       : {}),
+    ...(dependencies.replayHistory ? { replayHistory: true } : {}),
   });
 
   return {
@@ -44,6 +45,8 @@ export async function createInteractiveRuntime(
     cancel: () => session.cancel(),
     setConfigOption: (configId, value) =>
       session.setConfigOption(configId, value),
+    listSessions: () => session.listSessions(),
+    deleteSession: (sessionId) => session.deleteSession(sessionId),
     dispose: async () => {
       await session.dispose();
       await process.stop();

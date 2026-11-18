@@ -31,6 +31,7 @@ export class AgentThreadStore implements AgentThreadRepository {
         agentId: thread.agentId,
         createdAt: thread.createdAt,
         updatedAt: thread.updatedAt,
+        ...(thread.sessionId ? { sessionId: thread.sessionId } : {}),
       });
     }
     return threads.sort((a, b) => b.updatedAt - a.updatedAt);

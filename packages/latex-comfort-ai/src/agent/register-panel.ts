@@ -196,6 +196,27 @@ export function registerAgentPanel(
       case "agentOpenDiff":
         await controller.openDiff(message.turnId, message.path);
         return;
+      case "agentOpenTurnDiffs":
+        await controller.openTurnDiffs(message.turnId);
+        return;
+      case "agentRestoreTurn": {
+        const confirmed = await vscode.window.showWarningMessage(
+          "Restore the files changed by this agent turn? Files modified since the turn will be left untouched.",
+          { modal: true },
+          "Restore turn",
+        );
+        if (confirmed !== "Restore turn") return;
+        const result = await controller.restoreTurn(message.turnId);
+        const detail = result.skipped.length
+          ? `Skipped ${result.skipped.length} file(s) changed since the agent turn.`
+          : undefined;
+        void vscode.window.showInformationMessage(
+          result.restored > 0
+            ? `Restored ${result.restored} file(s) from the agent turn.${detail ? ` ${detail}` : ""}`
+            : detail ?? "Nothing could be restored from this turn.",
+        );
+        return;
+      }
       case "agentOpenLocation":
         await openLocation(message.path, message.line);
         return;

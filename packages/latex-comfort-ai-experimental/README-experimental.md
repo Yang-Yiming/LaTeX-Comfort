@@ -15,4 +15,7 @@ curate the selector.
 The history button keeps saved threads and records the files changed by each
 turn. Open a changed file from **History → Changes** to review it in VS Code's
 native diff editor. Threads resume through ACP when the CLI supports session
-resume or load.
+resume or load, and ACP-only sessions appear in history as remote threads.
+
+A turn can open all changed file diffs or restore its files. Files edited after
+the agent turn are skipped instead of overwritten.
