@@ -1145,8 +1145,9 @@ summary:focus-visible {
   color: var(--agent-ink);
 }
 
-.lattice-composer-editor textarea {
+.lattice-composer-editor-row textarea {
   width: 100%;
+  min-width: 0;
   min-height: 42px;
   max-height: 200px;
   display: block;
@@ -1154,7 +1155,10 @@ summary:focus-visible {
   padding: 3px 0 0;
   border: 0;
   outline: 0;
-  resize: none;
+  outline-offset: 0;
+  box-shadow: none;
+  resize: none !important;
+  appearance: none;
   overflow-y: auto;
   background: transparent;
   color: var(--agent-ink);
@@ -1164,20 +1168,28 @@ summary:focus-visible {
   overflow-wrap: anywhere;
 }
 
-.lattice-composer-editor textarea::placeholder {
+.lattice-composer-editor-row textarea:focus,
+.lattice-composer-editor-row textarea:focus-visible {
+  outline: 0;
+  outline-offset: 0;
+  box-shadow: none;
+}
+
+.lattice-composer-editor-row textarea::placeholder {
   color: color-mix(in srgb, var(--agent-muted) 55%, transparent);
 }
 
-.lattice-composer-editor textarea:disabled {
+.lattice-composer-editor-row textarea:disabled {
   opacity: 0.55;
 }
 
 .lattice-composer-footer {
   min-width: 0;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 6px 8px;
   padding-top: 6px;
 }
 
@@ -1190,22 +1202,28 @@ summary:focus-visible {
 }
 
 .lattice-composer-pickers {
-  flex: 1;
+  min-width: 0;
+  flex: 1 1 180px;
   overflow: hidden;
 }
 
 .lattice-composer-actions {
   flex: none;
   gap: 8px;
+  margin-left: auto;
 }
 
 .lattice-picker {
   position: relative;
   min-width: 0;
+  flex: 0 1 auto;
+  overflow: hidden;
 }
 
 .lattice-picker-trigger {
-  max-width: 180px;
+  width: auto;
+  max-width: min(180px, 100%);
+  min-width: 0;
   height: 24px;
   display: inline-flex;
   align-items: center;
@@ -2046,6 +2064,14 @@ summary:focus-visible {
 
   .lattice-composer-surface {
     padding: 10px 11px 7px;
+  }
+
+  .lattice-composer-pickers {
+    flex-basis: 100%;
+  }
+
+  .lattice-composer-actions {
+    width: 100%;
   }
 
   .lattice-empty-viewport {
