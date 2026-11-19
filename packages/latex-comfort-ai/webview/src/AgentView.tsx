@@ -1106,13 +1106,12 @@ function ApprovalModePicker({
         type="button"
         className="lattice-picker-trigger lattice-approval-trigger"
         aria-expanded={open}
+        aria-haspopup="menu"
         aria-label={`Agent permissions: ${current.label}`}
         title={`Agent permissions: ${current.label}`}
         onClick={() => setOpen((value) => !value)}
       >
-        <Icon name={current.icon} size={12} />
-        <span>{current.label}</span>
-        <Icon name="chevron" size={11} />
+        <Icon name={current.icon} size={14} />
       </button>
       {open ? (
         <div className="lattice-picker-menu lattice-approval-menu" role="menu" aria-label="Agent permissions">

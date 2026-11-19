@@ -1586,7 +1586,8 @@ summary:focus-visible {
 }
 
 .lattice-approval-trigger {
-  max-width: 230px;
+  max-width: none;
+  padding: 0 5px;
 }
 
 .lattice-approval-option > span {
