@@ -8,6 +8,7 @@ await build({
   format: "cjs",
   target: "node20",
   external: ["vscode"],
+  alias: { "jsonc-parser": "jsonc-parser/lib/esm/main.js" },
   sourcemap: true,
   logLevel: "info",
 });

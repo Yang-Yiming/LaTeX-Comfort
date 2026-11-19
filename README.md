@@ -20,6 +20,7 @@ The AI extension currently includes:
 - **Review surfaces** — **LaTeX Comfort AI: Configure Review Surface** switches the selection diff between the native inline editor, an experimental editor inset, and a side panel. The default (`auto`) picks a surface based on the size of the selection.
 - **Providers** — **LaTeX Comfort AI: Configure Provider** connects either VS Code's language models or an OpenAI-compatible endpoint (OpenAI, Ollama, LM Studio, …). API keys are stored in VS Code SecretStorage.
 - **Agent panel** — **LaTeX Comfort AI: Open Agent** talks to a locally installed OpenCode or Codex agent over ACP: model selection, inline tool activity and permission requests, saved thread history, remote sessions, per-turn file diffs, and fail-closed restore of the files a turn changed.
+- **Agent approvals** — the composer's permissions picker offers **Never ask**, **Ask for risky actions**, and **Ask before edits and commands**. The last mode shows the proposed diff before an edit is written. For OpenCode, run **LaTeX Comfort AI: Configure OpenCode Review** once per workspace so its `edit` permission resolves to `ask`.
 - **Run Agent** — **LaTeX Comfort AI: Run Agent** sends a one-off prompt to a local CLI agent and streams progress to an output channel without opening the panel.
 
 The AI extension was developed with VS Code's built-in AI features (Copilot, chat, and inline suggestions) turned off. It may therefore overlap or conflict with them in places, such as how editor decorations, inline review widgets, or chat-style panels are presented.

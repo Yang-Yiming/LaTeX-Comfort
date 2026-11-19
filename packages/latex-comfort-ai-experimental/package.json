@@ -21,7 +21,8 @@
     "package": "pnpm build && npx --yes @vscode/vsce@latest package --no-dependencies --allow-missing-repository --readme-path README-experimental.md -o latex-comfort-ai-experimental-0.1.0.vsix"
   },
   "dependencies": {
-    "@latex-comfort/shared": "workspace:*"
+    "@latex-comfort/shared": "workspace:*",
+    "jsonc-parser": "^3.3.1"
   },
   "extensionDependencies": [
     "latex-comfort-dev.latex-comfort"
@@ -60,6 +61,11 @@
       {
         "command": "latexComfort.ai.configureReviewSurface",
         "title": "LaTeX Comfort AI: Configure Review Surface",
+        "category": "LaTeX Comfort AI"
+      },
+      {
+        "command": "latexComfort.ai.agent.configureReview",
+        "title": "LaTeX Comfort AI: Configure OpenCode Review",
         "category": "LaTeX Comfort AI"
       },
       {
@@ -181,6 +187,27 @@
           "type": "string",
           "default": "",
           "description": "Preferred Codex model value. Leave empty to choose from the ACP model list on each run."
+        },
+        "latexComfort.ai.agent.approvalMode": {
+          "type": "string",
+          "enum": [
+            "full-access",
+            "auto",
+            "approval-required"
+          ],
+          "default": "approval-required",
+          "order": 20,
+          "enumDescriptions": [
+            "Never show tool permission prompts. The agent applies its changes without asking.",
+            "Auto-approve routine edits inside the workspace, but ask before shell commands, deletes, network access, and edits outside the workspace.",
+            "Ask before every file edit and command, showing the proposed change before it is applied."
+          ],
+          "markdownDescription": "How the agent asks for permission before acting.\n\n`approval-required` is recommended for LaTeX writing: every edit shows its diff before the file changes.\n\nOpenCode only sends these requests when its own `permissions` rules resolve to `ask`; run **LaTeX Comfort AI: Configure OpenCode Review** if edits are applied without a prompt."
+        },
+        "latexComfort.ai.agent.review.autoOpenDiff": {
+          "type": "boolean",
+          "default": false,
+          "description": "Open the turn's combined diff automatically when the agent finishes. When off, a Review changes button appears in the status bar and the history menu still opens diffs."
         }
       }
     }

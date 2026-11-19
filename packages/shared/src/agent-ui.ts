@@ -20,6 +20,27 @@ export interface AgentUiOption {
   kind?: string;
 }
 
+export type AgentUiApprovalMode =
+  | "full-access"
+  | "auto"
+  | "approval-required";
+
+export interface AgentUiDiffHunk {
+  beforeText: string;
+  afterText: string;
+  beforeStart: number;
+  afterStart: number;
+}
+
+export interface AgentUiDiff {
+  path: string;
+  oldText?: string;
+  newText: string;
+  additions: number;
+  deletions: number;
+  hunks: AgentUiDiffHunk[];
+}
+
 export interface AgentUiConfigOption {
   id: string;
   name: string;
@@ -125,10 +146,13 @@ export type AgentUiEntry =
       id: string;
       at: number;
       toolCallId?: string;
+      toolKind?: string;
       title: string;
       locations?: AgentUiLocation[];
+      diffs?: AgentUiDiff[];
       options: AgentUiOption[];
       resolvedOptionId?: string;
+      autoResolved?: boolean;
     }
   | {
       type: "error";
@@ -169,6 +193,7 @@ export interface AgentUiSnapshot {
   agentId: AgentUiAgentId;
   agentLabel: string;
   phase: AgentUiPhase;
+  approvalMode: AgentUiApprovalMode;
   title: string;
   entries: AgentUiEntry[];
   configOptions: AgentUiConfigOption[];
@@ -216,6 +241,16 @@ export type AgentWebviewToHostMessage =
       permissionId: string;
       optionId?: string;
     }
+  | {
+      type: "agentSelectApprovalMode";
+      mode: AgentUiApprovalMode;
+    }
+  | {
+      type: "agentOpenPermissionDiff";
+      permissionId: string;
+      index: number;
+    }
+  | { type: "agentConfigureOpenCodeReview" }
   | { type: "agentAuthenticate"; methodId?: string }
   | { type: "agentOpenDiff"; turnId: string; path: string }
   | { type: "agentOpenTurnDiffs"; turnId: string }

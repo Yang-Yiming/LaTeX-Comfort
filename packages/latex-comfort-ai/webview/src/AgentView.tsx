@@ -22,10 +22,12 @@ import {
 import { AgentMarkdown } from "./AgentMarkdown";
 import type {
   AgentUiAgentId,
+  AgentUiApprovalMode,
   AgentUiAttachment,
   AgentUiCommand,
   AgentUiConfigOption,
   AgentUiContext,
+  AgentUiDiff,
   AgentUiEntry,
   AgentUiFileMention,
   AgentUiSnapshot,
@@ -40,7 +42,10 @@ export interface AgentViewProps {
   onDeleteThread(threadId: string): void;
   onSelectAgent(agentId: AgentUiAgentId): void;
   onSelectConfig(configId: string, value: string): void;
+  onSelectApprovalMode(mode: AgentUiApprovalMode): void;
+  onConfigureOpenCodeReview(): void;
   onResolvePermission(permissionId: string, optionId?: string): void;
+  onOpenPermissionDiff(permissionId: string, index: number): void;
   onAuthenticate(methodId?: string): void;
   onOpenDiff(turnId: string, path: string): void;
   onOpenTurnDiffs(turnId: string): void;
@@ -134,7 +139,10 @@ function Icon({
     | "diff"
     | "selection"
     | "image"
-    | "agent";
+    | "agent"
+    | "shield"
+    | "shield-check"
+    | "hand";
   size?: number;
   className?: string;
 }) {
@@ -187,6 +195,12 @@ function Icon({
       return <svg {...common}><rect x="3.5" y="4.5" width="17" height="15" rx="2" /><circle cx="9" cy="10" r="1.5" /><path d="m5 17 4.5-4.5 3 3 2.5-2.5 4 4" /></svg>;
     case "agent":
       return <svg {...common}><rect x="5" y="7" width="14" height="11" rx="3" /><path d="M12 3v4M9 12h.1M15 12h.1M9 16h6" /></svg>;
+    case "shield":
+      return <svg {...common}><path d="M12 3 5 6v5c0 4.5 2.8 8 7 10 4.2-2 7-5.5 7-10V6l-7-3Z" /></svg>;
+    case "shield-check":
+      return <svg {...common}><path d="M12 3 5 6v5c0 4.5 2.8 8 7 10 4.2-2 7-5.5 7-10V6l-7-3Z" /><path d="m9 12 2 2 4-4" /></svg>;
+    case "hand":
+      return <svg {...common}><path d="M8 11V5.5a1.5 1.5 0 0 1 3 0V11M11 10V4.5a1.5 1.5 0 0 1 3 0V11M14 10V5.5a1.5 1.5 0 0 1 3 0V13c0 4.4-2.7 7-6.5 7-2.3 0-4.2-1.1-5.5-3.2L3.5 13A1.5 1.5 0 0 1 6 11.5L8 14" /></svg>;
   }
 }
 
@@ -628,9 +642,11 @@ function AgentLoadingSkeleton() {
 function AgentEntry({
   entry,
   onOpenLocation,
+  onOpenPermissionDiff,
 }: {
   entry: AgentUiEntry;
   onOpenLocation(path: string, line?: number): void;
+  onOpenPermissionDiff(permissionId: string, index: number): void;
 }) {
   switch (entry.type) {
     case "user":
@@ -720,11 +736,35 @@ function AgentEntry({
     case "permission": {
       if (!entry.resolvedOptionId) return null;
       const label = entry.options.find((option) => option.id === entry.resolvedOptionId)?.label ?? "Decision sent";
+      const stats = diffStatText(entry.diffs);
       return (
-        <div className="lattice-work-row is-static">
-          <span className="lattice-work-status"><Icon name="check" size={13} /></span>
-          <span className="lattice-work-title">{entry.title}</span>
-          <span className="lattice-work-kind">{label}</span>
+        <div className="lattice-permission-audit">
+          <div className="lattice-work-row is-static" data-auto={entry.autoResolved || undefined}>
+            <span className="lattice-work-status">
+              <Icon name={entry.autoResolved ? "shield-check" : "check"} size={13} />
+            </span>
+            <span className="lattice-work-title">{entry.title}</span>
+            <span className="lattice-work-kind">
+              {entry.autoResolved ? "Auto-allowed" : label}
+              {stats ? ` · ${stats}` : ""}
+            </span>
+          </div>
+          {entry.diffs?.length ? (
+            <div className="lattice-work-locations">
+              {entry.diffs.map((diff, index) => (
+                <button
+                  type="button"
+                  className="lattice-location"
+                  key={`${diff.path}:${index}`}
+                  onClick={() => onOpenPermissionDiff(entry.id, index)}
+                >
+                  <Icon name="diff" size={12} />
+                  <span>{shortPath(diff.path)}</span>
+                  <span className="lattice-location-line">+{diff.additions} −{diff.deletions}</span>
+                </button>
+              ))}
+            </div>
+          ) : null}
         </div>
       );
     }
@@ -788,9 +828,11 @@ function AuthBanner({ snapshot, onAuthenticate }: { snapshot: AgentUiSnapshot; o
 function AgentPermissionPanel({
   entry,
   onResolve,
+  onOpenDiff,
 }: {
   entry: Extract<AgentUiEntry, { type: "permission" }>;
   onResolve(permissionId: string, optionId?: string): void;
+  onOpenDiff(permissionId: string, index: number): void;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -822,7 +864,7 @@ function AgentPermissionPanel({
           <p>{entry.title}</p>
         </div>
       </div>
-      {entry.locations?.length ? (
+      {entry.locations?.length && !entry.diffs?.length ? (
         <div className="lattice-work-locations">
           {entry.locations.map((location, index) => (
             <span className="lattice-location is-static" key={`${location.path}:${location.line ?? 0}:${index}`}>
@@ -833,9 +875,15 @@ function AgentPermissionPanel({
           ))}
         </div>
       ) : null}
+      <PermissionDiffPreview
+        permissionId={entry.id}
+        diffs={entry.diffs}
+        onOpenDiff={onOpenDiff}
+      />
       <div className="lattice-choice-list">
         {entry.options.map((option, index) => {
           const reject = option.kind?.startsWith("reject");
+          const always = option.kind === "allow_always";
           return (
             <button
               type="button"
@@ -846,8 +894,12 @@ function AgentPermissionPanel({
             >
               <span className="lattice-choice-index">{index + 1}</span>
               <span className="lattice-choice-copy">
-                <strong>{option.label}</strong>
-                {permissionDescription(option.kind) ? <small>{permissionDescription(option.kind)}</small> : null}
+                <strong>{always ? "Allow for workspace" : option.label}</strong>
+                {always ? (
+                  <small>Applies to matching requests in other agent sessions in this workspace.</small>
+                ) : permissionDescription(option.kind) ? (
+                  <small>{permissionDescription(option.kind)}</small>
+                ) : null}
               </span>
               <Icon name="chevron" size={12} />
             </button>
@@ -1014,6 +1066,160 @@ function ConfigPicker({
   );
 }
 
+const APPROVAL_MODE_META: Record<
+  AgentUiApprovalMode,
+  { label: string; icon: "shield" | "shield-check" | "hand" }
+> = {
+  "full-access": { label: "Never ask", icon: "shield-check" },
+  auto: { label: "Ask for risky actions", icon: "shield" },
+  "approval-required": { label: "Ask before edits and commands", icon: "hand" },
+};
+
+function ApprovalModePicker({
+  value,
+  onChange,
+  onConfigureReview,
+  showConfigure,
+}: {
+  value: AgentUiApprovalMode;
+  onChange(mode: AgentUiApprovalMode): void;
+  onConfigureReview(): void;
+  showConfigure: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const current = APPROVAL_MODE_META[value];
+  const modes: AgentUiApprovalMode[] = ["full-access", "auto", "approval-required"];
+
+  useEffect(() => {
+    if (!open) return;
+    const close = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    window.addEventListener("pointerdown", close);
+    return () => window.removeEventListener("pointerdown", close);
+  }, [open]);
+
+  return (
+    <div className="lattice-picker" ref={rootRef}>
+      <button
+        type="button"
+        className="lattice-picker-trigger lattice-approval-trigger"
+        aria-expanded={open}
+        aria-label={`Agent permissions: ${current.label}`}
+        title={`Agent permissions: ${current.label}`}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <Icon name={current.icon} size={12} />
+        <span>{current.label}</span>
+        <Icon name="chevron" size={11} />
+      </button>
+      {open ? (
+        <div className="lattice-picker-menu lattice-approval-menu" role="menu" aria-label="Agent permissions">
+          {modes.map((mode) => {
+            const meta = APPROVAL_MODE_META[mode];
+            return (
+              <button
+                type="button"
+                role="menuitemradio"
+                aria-checked={mode === value}
+                data-active={mode === value || undefined}
+                className="lattice-picker-option lattice-approval-option"
+                key={mode}
+                onClick={() => {
+                  setOpen(false);
+                  onChange(mode);
+                }}
+              >
+                <Icon name={meta.icon} size={14} />
+                <span>{meta.label}</span>
+                {mode === value ? <Icon name="check" size={13} /> : null}
+              </button>
+            );
+          })}
+          {showConfigure ? (
+            <button
+              type="button"
+              role="menuitem"
+              className="lattice-picker-option lattice-approval-configure"
+              onClick={() => {
+                setOpen(false);
+                onConfigureReview();
+              }}
+            >
+              <Icon name="settings" size={13} />
+              <span>Configure per-edit review…</span>
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function diffStatText(diffs: readonly AgentUiDiff[] | undefined): string | undefined {
+  if (!diffs?.length) return undefined;
+  const additions = diffs.reduce((total, diff) => total + diff.additions, 0);
+  const deletions = diffs.reduce((total, diff) => total + diff.deletions, 0);
+  return `+${additions} −${deletions}`;
+}
+
+function diffLines(text: string): string[] {
+  if (!text) return [];
+  const lines = text.split(/\r?\n/);
+  if (lines.at(-1) === "") lines.pop();
+  return lines;
+}
+
+function PermissionDiffPreview({
+  permissionId,
+  diffs,
+  onOpenDiff,
+}: {
+  permissionId: string;
+  diffs?: readonly AgentUiDiff[];
+  onOpenDiff(permissionId: string, index: number): void;
+}) {
+  if (!diffs?.length) return null;
+  return (
+    <div className="lattice-permission-diffs">
+      {diffs.map((diff, index) => (
+        <div className="lattice-permission-diff" key={`${diff.path}:${index}`}>
+          <div className="lattice-permission-diff-head">
+            <span className="lattice-permission-file">
+              <Icon name="file" size={12} />
+              <span>{shortPath(diff.path)}</span>
+            </span>
+            <span className="lattice-permission-stats">
+              <span>+{diff.additions}</span>
+              <span>−{diff.deletions}</span>
+            </span>
+            <button
+              type="button"
+              className="lattice-permission-open"
+              onClick={() => onOpenDiff(permissionId, index)}
+            >
+              Open full diff
+            </button>
+          </div>
+          <div className="lattice-permission-lines">
+            {diff.hunks.map((hunk, hunkIndex) => (
+              <div className="lattice-permission-hunk" key={hunkIndex}>
+                {diffLines(hunk.beforeText).map((line, lineIndex) => (
+                  <div className="is-removed" key={`b${hunkIndex}:${lineIndex}`}>− {line || " "}</div>
+                ))}
+                {diffLines(hunk.afterText).map((line, lineIndex) => (
+                  <div className="is-added" key={`a${hunkIndex}:${lineIndex}`}>+ {line || " "}</div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function AgentComposer({
   snapshot,
   draft,
@@ -1031,6 +1237,9 @@ function AgentComposer({
   pendingPermission,
   onCancel,
   onResolvePermission,
+  onSelectApprovalMode,
+  onConfigureOpenCodeReview,
+  onOpenPermissionDiff,
   onSelectAgent,
   onSelectConfig,
   onAuthenticate,
@@ -1052,6 +1261,9 @@ function AgentComposer({
   pendingPermission: Extract<AgentUiEntry, { type: "permission" }> | null;
   onCancel(): void;
   onResolvePermission(permissionId: string, optionId?: string): void;
+  onSelectApprovalMode(mode: AgentUiApprovalMode): void;
+  onConfigureOpenCodeReview(): void;
+  onOpenPermissionDiff(permissionId: string, index: number): void;
   onSelectAgent(agentId: AgentUiAgentId): void;
   onSelectConfig(configId: string, value: string): void;
   onAuthenticate(methodId?: string): void;
@@ -1184,7 +1396,11 @@ function AgentComposer({
           </div>
         ) : null}
         {pendingPermission ? (
-          <AgentPermissionPanel entry={pendingPermission} onResolve={onResolvePermission} />
+          <AgentPermissionPanel
+            entry={pendingPermission}
+            onResolve={onResolvePermission}
+            onOpenDiff={onOpenPermissionDiff}
+          />
         ) : null}
         {snapshot.context ? <ContextChip context={snapshot.context} /> : null}
         <div className="lattice-composer-surface">
@@ -1262,6 +1478,12 @@ function AgentComposer({
                 agentId={snapshot.agentId}
                 agentLabel={snapshot.agentLabel}
                 onSelectAgent={onSelectAgent}
+              />
+              <ApprovalModePicker
+                value={snapshot.approvalMode ?? "approval-required"}
+                onChange={onSelectApprovalMode}
+                onConfigureReview={onConfigureOpenCodeReview}
+                showConfigure={snapshot.agentId === "opencode"}
               />
               {snapshot.configOptions.map((option) => (
                 <ConfigPicker key={option.id} option={option} onChange={onSelectConfig} />
@@ -1579,7 +1801,12 @@ export function AgentView(props: AgentViewProps) {
           ) : (
             <div className="lattice-timeline">
               {visibleEntries.map((entry) => (
-                <AgentEntry key={entry.id} entry={entry} onOpenLocation={props.onOpenLocation} />
+                <AgentEntry
+                  key={entry.id}
+                  entry={entry}
+                  onOpenLocation={props.onOpenLocation}
+                  onOpenPermissionDiff={props.onOpenPermissionDiff}
+                />
               ))}
               {snapshot.phase === "running" ? (
                 <div className="lattice-running-row" role="status">
@@ -1608,6 +1835,9 @@ export function AgentView(props: AgentViewProps) {
           pendingPermission={pendingPermission}
           onCancel={props.onCancel}
           onResolvePermission={props.onResolvePermission}
+          onSelectApprovalMode={props.onSelectApprovalMode}
+          onConfigureOpenCodeReview={props.onConfigureOpenCodeReview}
+          onOpenPermissionDiff={props.onOpenPermissionDiff}
           onSelectAgent={props.onSelectAgent}
           onSelectConfig={props.onSelectConfig}
           onAuthenticate={props.onAuthenticate}

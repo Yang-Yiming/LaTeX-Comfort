@@ -1581,6 +1581,145 @@ summary:focus-visible {
   color: var(--agent-faint);
 }
 
+.lattice-approval-menu {
+  width: 248px;
+}
+
+.lattice-approval-trigger {
+  max-width: 230px;
+}
+
+.lattice-approval-option > span {
+  flex: 1;
+}
+
+.lattice-approval-option > svg:first-child {
+  flex: none;
+  color: var(--agent-muted);
+}
+
+.lattice-approval-configure {
+  margin-top: 3px;
+  border-top: 1px solid var(--agent-border);
+  border-radius: 0 0 7px 7px;
+  color: var(--agent-muted);
+}
+
+.lattice-approval-configure > svg {
+  flex: none;
+}
+
+.lattice-permission-diffs {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 9px 0 2px 35px;
+}
+
+.lattice-permission-diff {
+  overflow: hidden;
+  border: 1px solid var(--agent-border);
+  border-radius: 8px;
+  background: var(--agent-reading);
+}
+
+.lattice-permission-diff-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--agent-border);
+}
+
+.lattice-permission-file {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--agent-ink);
+  font-size: 11px;
+}
+
+.lattice-permission-file > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lattice-permission-stats {
+  flex: none;
+  display: flex;
+  gap: 6px;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+.lattice-permission-stats > span:first-child {
+  color: var(--agent-success);
+}
+
+.lattice-permission-stats > span:last-child {
+  color: var(--agent-danger);
+}
+
+.lattice-permission-open {
+  flex: none;
+  padding: 2px 5px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--agent-accent);
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.lattice-permission-open:hover {
+  background: var(--agent-hover);
+}
+
+.lattice-permission-lines {
+  max-height: 220px;
+  overflow: auto;
+  padding: 4px 0;
+  font-family: var(--agent-code);
+  font-size: 11px;
+  line-height: 1.55;
+  white-space: pre;
+}
+
+.lattice-permission-hunk + .lattice-permission-hunk {
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px dashed var(--agent-border);
+}
+
+.lattice-permission-lines .is-removed,
+.lattice-permission-lines .is-added {
+  padding: 0 8px;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.lattice-permission-lines .is-removed {
+  background: color-mix(in srgb, var(--agent-danger) 9%, transparent);
+  color: color-mix(in srgb, var(--agent-danger) 88%, var(--agent-ink));
+}
+
+.lattice-permission-lines .is-added {
+  background: color-mix(in srgb, var(--agent-success) 10%, transparent);
+  color: color-mix(in srgb, var(--agent-success) 88%, var(--agent-ink));
+}
+
+.lattice-work-row[data-auto] .lattice-work-kind {
+  color: var(--agent-muted);
+}
+
+.lattice-permission-audit .lattice-work-locations {
+  margin: 0 0 4px 28px;
+}
+
 /* History popover: Lattice's header menu, extended with ACP turn changes. */
 .lattice-history-layer {
   position: absolute;

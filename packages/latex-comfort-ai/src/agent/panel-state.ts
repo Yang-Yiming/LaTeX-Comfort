@@ -1,7 +1,9 @@
 import type {
   AgentUiAgentId,
+  AgentUiApprovalMode,
   AgentUiAttachment,
   AgentUiConfigOption,
+  AgentUiDiff,
   AgentUiEntry,
   AgentUiLocation,
   AgentUiOption,
@@ -19,6 +21,7 @@ export interface AgentPanelState
 export interface CreateAgentPanelStateOptions {
   agentId: AgentUiAgentId;
   agentLabel: string;
+  approvalMode?: AgentUiApprovalMode;
   now?: () => number;
 }
 
@@ -30,6 +33,7 @@ export function createAgentPanelState(
     agentId: options.agentId,
     agentLabel: options.agentLabel,
     phase: "idle",
+    approvalMode: options.approvalMode ?? "approval-required",
     title: "New thread",
     entries: [],
     configOptions: [],
@@ -130,8 +134,12 @@ export function addPermission(
     permissionId: string;
     title: string;
     toolCallId?: string;
+    toolKind?: string;
     locations?: AgentUiLocation[];
+    diffs?: AgentUiDiff[];
     options: AgentUiOption[];
+    resolvedOptionId?: string;
+    autoResolved?: boolean;
   },
 ): AgentPanelState {
   const existing = entryById(state.entries, request.permissionId);
@@ -142,13 +150,27 @@ export function addPermission(
     at: state.now(),
     title: request.title,
     ...(request.toolCallId ? { toolCallId: request.toolCallId } : {}),
+    ...(request.toolKind ? { toolKind: request.toolKind } : {}),
     ...(request.locations ? { locations: request.locations } : {}),
+    ...(request.diffs ? { diffs: request.diffs } : {}),
     options: request.options,
+    ...(request.resolvedOptionId
+      ? { resolvedOptionId: request.resolvedOptionId }
+      : {}),
+    ...(request.autoResolved ? { autoResolved: true } : {}),
   };
   return update(state, {
-    phase: "waiting_permission",
+    phase: request.autoResolved ? state.phase : "waiting_permission",
     entries: [...settleStreaming(state.entries), entry],
   });
+}
+
+export function setApprovalMode(
+  state: AgentPanelState,
+  mode: AgentUiApprovalMode,
+): AgentPanelState {
+  if (state.approvalMode === mode) return state;
+  return update(state, { approvalMode: mode });
 }
 
 export function resolvePermission(

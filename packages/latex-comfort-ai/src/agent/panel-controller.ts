@@ -12,6 +12,8 @@ import type {
   AgentUiTurnSummary,
 } from "@latex-comfort/shared";
 import { getAgentDefinition } from "./definitions";
+import { decidePermission } from "./approval-policy";
+import { permissionDiffs } from "./permission-preview";
 import {
   addPermission,
   appendUserMessage,
@@ -19,6 +21,7 @@ import {
   finishTurn,
   reduceAgentEvent,
   resolvePermission,
+  setApprovalMode,
   setPhase,
   settleStreaming,
   type AgentPanelState,
@@ -31,6 +34,7 @@ import type {
   StoredAgentThread,
 } from "./history-types";
 import type {
+  AgentApprovalMode,
   AgentAuthDecision,
   AgentAuthRequest,
   AgentCommand,
@@ -39,6 +43,7 @@ import type {
   AgentEvent,
   AgentId,
   AgentPermissionRequest,
+  AgentProposedDiff,
   AgentSettings,
 } from "./types";
 
@@ -92,8 +97,10 @@ export interface AgentPanelControllerOptions {
   ): Promise<void>;
   now?: () => number;
   initialAgentId?: AgentId;
+  initialApprovalMode?: AgentApprovalMode;
   initialModels?: Partial<Record<AgentId, string>>;
   initialVisibleModels?: Partial<Record<AgentId, string[] | null>>;
+  onApprovalModeChanged?(mode: AgentApprovalMode): Promise<void> | void;
   onVisibleModelsChanged?(
     agentId: AgentId,
     values: string[] | null,
@@ -137,8 +144,17 @@ function errorEntry(state: AgentPanelState, text: string): AgentUiEntry {
   };
 }
 
+function persistableEntries(entries: AgentUiEntry[]): AgentUiEntry[] {
+  return settleStreaming(entries).map((entry) =>
+    entry.type === "permission" && entry.diffs
+      ? { ...entry, diffs: undefined }
+      : entry,
+  );
+}
+
 export class AgentPanelController {
   private agentId: AgentId;
+  private approvalMode: AgentApprovalMode;
   private state: AgentPanelState;
   private runtime: AgentRuntime | undefined;
   private starting: Promise<AgentRuntime> | undefined;
@@ -162,11 +178,16 @@ export class AgentPanelController {
       }
     | undefined;
   private permissionSequence = 0;
-  private pendingPermission:
-    | {
-        resolve(optionId: string | undefined): void;
-      }
-    | undefined;
+  private readonly pendingPermissions = new Map<
+    string,
+    (optionId: string | undefined) => void
+  >();
+  private readonly permissionRequests = new Map<
+    string,
+    { request: AgentPermissionRequest; diffs: AgentProposedDiff[] }
+  >();
+  private sawEditPermission = false;
+  private warnedUnreviewedEdits = false;
   private pendingAuthentication:
     | {
         resolve(decision: AgentAuthDecision): void;
@@ -176,6 +197,7 @@ export class AgentPanelController {
 
   constructor(private readonly options: AgentPanelControllerOptions) {
     this.agentId = options.initialAgentId ?? "opencode";
+    this.approvalMode = options.initialApprovalMode ?? "approval-required";
     this.threadId = options.newThreadId?.() ?? randomUUID();
     this.threadCreatedAt = options.now?.() ?? Date.now();
     for (const [agentId, model] of Object.entries(options.initialModels ?? {})) {
@@ -252,6 +274,7 @@ export class AgentPanelController {
     }
 
     const context = this.state.context;
+    this.sawEditPermission = false;
     if (this.state.title === "New thread") {
       this.state = {
         ...this.state,
@@ -319,20 +342,35 @@ export class AgentPanelController {
   }
 
   async cancel(): Promise<void> {
-    this.pendingPermission?.resolve(undefined);
-    this.pendingPermission = undefined;
+    for (const resolve of this.pendingPermissions.values()) resolve(undefined);
+    this.pendingPermissions.clear();
     this.pendingAuthentication?.resolve({ type: "cancelled" });
     this.pendingAuthentication = undefined;
     await this.runtime?.cancel().catch(() => undefined);
   }
 
   resolvePermission(permissionId: string, optionId?: string): void {
-    const pending = this.pendingPermission;
+    const pending = this.pendingPermissions.get(permissionId);
     if (!pending) return;
-    this.pendingPermission = undefined;
+    this.pendingPermissions.delete(permissionId);
     this.state = resolvePermission(this.state, permissionId, optionId);
     this.emit();
-    pending.resolve(optionId);
+    pending(optionId);
+  }
+
+  async setApprovalMode(mode: AgentApprovalMode): Promise<void> {
+    if (this.approvalMode === mode) return;
+    this.approvalMode = mode;
+    this.state = setApprovalMode(this.state, mode);
+    this.emit();
+    await this.options.onApprovalModeChanged?.(mode);
+  }
+
+  permissionDiff(
+    permissionId: string,
+    index: number,
+  ): AgentProposedDiff | undefined {
+    return this.permissionRequests.get(permissionId)?.diffs[index];
   }
 
   async authenticate(methodId?: string): Promise<void> {
@@ -557,6 +595,20 @@ export class AgentPanelController {
       prompt: pending.prompt,
       changes,
     };
+    if (
+      changes.length > 0 &&
+      this.agentId === "opencode" &&
+      this.approvalMode !== "full-access" &&
+      !this.sawEditPermission &&
+      !this.warnedUnreviewedEdits
+    ) {
+      this.warnedUnreviewedEdits = true;
+      this.state = reduceAgentEvent(this.state, {
+        type: "notice",
+        message:
+          "OpenCode applied edits without asking. Use the permissions menu → Configure per-edit review… to review each edit before it is written.",
+      });
+    }
     this.turns = [turn, ...this.turns.filter((item) => item.id !== turn.id)];
     this.emit();
     await this.persistThread();
@@ -577,7 +629,7 @@ export class AgentPanelController {
       createdAt: this.threadCreatedAt,
       updatedAt: now,
       ...(this.state.currentModel ? { model: this.state.currentModel } : {}),
-      entries: settleStreaming(this.state.entries),
+      entries: persistableEntries(this.state.entries),
       turns: this.turns,
     };
     await store.save(thread);
@@ -635,6 +687,11 @@ export class AgentPanelController {
   }
 
   private resetThread(agentId: AgentId): void {
+    for (const resolve of this.pendingPermissions.values()) resolve(undefined);
+    this.pendingPermissions.clear();
+    this.permissionRequests.clear();
+    this.sawEditPermission = false;
+    this.warnedUnreviewedEdits = false;
     const now = this.options.now?.() ?? Date.now();
     this.threadId = this.options.newThreadId?.() ?? randomUUID();
     this.threadCreatedAt = now;
@@ -656,6 +713,7 @@ export class AgentPanelController {
     const state = createAgentPanelState({
       agentId,
       agentLabel: definition.label,
+      approvalMode: this.approvalMode,
       now: this.options.now,
     });
     const model = this.selectedModels.get(agentId);
@@ -767,21 +825,63 @@ export class AgentPanelController {
   private requestPermission(
     request: AgentPermissionRequest,
   ): Promise<string | undefined> {
-    if (this.pendingPermission) {
-      throw new Error("The agent requested more than one permission at once.");
-    }
     const permissionId = `permission-${++this.permissionSequence}`;
-    this.state = addPermission(this.state, {
-      permissionId,
-      title: request.title,
-      ...(request.toolCallId ? { toolCallId: request.toolCallId } : {}),
-      ...(request.locations ? { locations: request.locations } : {}),
-      options: request.options,
+    const diffs = permissionDiffs(request.diffs);
+    if (
+      request.diffs?.length ||
+      request.toolKind === "edit" ||
+      request.toolKind === "delete" ||
+      request.toolKind === "move"
+    ) {
+      this.sawEditPermission = true;
+    }
+    const decision = decidePermission(
+      request,
+      this.approvalMode,
+      this.options.workspaceDirectory() ?? this.options.activeFileDirectory(),
+    );
+    this.permissionRequests.set(permissionId, {
+      request,
+      diffs: request.diffs ?? [],
+    });
+    if (this.permissionRequests.size > 200) {
+      const oldest = this.permissionRequests.keys().next().value;
+      if (oldest) this.permissionRequests.delete(oldest);
+    }
+    const audit =
+      decision.type !== "ask" &&
+      (Boolean(diffs?.length) ||
+        request.toolKind === "edit" ||
+        request.toolKind === "delete" ||
+        request.toolKind === "move" ||
+        request.toolKind === "execute" ||
+        request.toolKind === "fetch");
+    if (decision.type === "ask" || audit) {
+      this.state = addPermission(this.state, {
+        permissionId,
+        title: request.title,
+        ...(request.toolCallId ? { toolCallId: request.toolCallId } : {}),
+        ...(request.toolKind ? { toolKind: request.toolKind } : {}),
+        ...(request.locations ? { locations: request.locations } : {}),
+        ...(diffs ? { diffs } : {}),
+        options: request.options,
+        ...(decision.type === "ask"
+          ? {}
+          : {
+              resolvedOptionId: decision.optionId,
+              autoResolved: true,
+            }),
+      });
+    }
+    if (decision.type !== "ask") {
+      this.emit();
+      return Promise.resolve(decision.optionId);
+    }
+    const answered = new Promise<string | undefined>((resolve) => {
+      this.pendingPermissions.set(permissionId, resolve);
     });
     this.emit();
-    return new Promise<string | undefined>((resolve) => {
-      this.pendingPermission = { resolve };
-    });
+    return answered;
   }
 
   private requestAuthentication(

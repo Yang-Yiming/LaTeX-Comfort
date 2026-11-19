@@ -34,12 +34,6 @@ function signature(hunk: LineHunk): string {
     .digest("hex");
 }
 
-function lineSummary(text: string): string {
-  const first = text.split(/\r?\n/, 1)[0] ?? "";
-  const lines = text.split(/\r?\n/).length;
-  return lines > 1 ? `− ${first}  (+${lines - 1} more lines)` : `− ${first}`;
-}
-
 class AgentTurnReviewCodeLensProvider implements vscode.CodeLensProvider {
   private readonly changed = new vscode.EventEmitter<void>();
   private uri: string | undefined;
@@ -97,25 +91,6 @@ class AgentTurnReviewCodeLensProvider implements vscode.CodeLensProvider {
 }
 
 export class AgentTurnReview implements vscode.Disposable {
-  private readonly added = vscode.window.createTextEditorDecorationType({
-    isWholeLine: true,
-    backgroundColor: new vscode.ThemeColor("diffEditor.insertedLineBackground"),
-    borderColor: new vscode.ThemeColor("diffEditor.insertedTextBorder"),
-    borderStyle: "solid",
-    borderWidth: "0 0 0 2px",
-    overviewRulerColor: new vscode.ThemeColor("editorOverviewRuler.addedForeground"),
-    overviewRulerLane: vscode.OverviewRulerLane.Left,
-  });
-  private readonly deleted = vscode.window.createTextEditorDecorationType({
-    after: {
-      color: new vscode.ThemeColor("editorError.foreground"),
-      fontStyle: "italic",
-      textDecoration: "line-through",
-      margin: "0 0 0 1.5em",
-    },
-    overviewRulerColor: new vscode.ThemeColor("editorOverviewRuler.deletedForeground"),
-    overviewRulerLane: vscode.OverviewRulerLane.Left,
-  });
   private readonly codeLens = new AgentTurnReviewCodeLensProvider();
   private readonly disposables: vscode.Disposable[];
   private readonly approvedByFile = new Map<string, Set<string>>();
@@ -134,10 +109,12 @@ export class AgentTurnReview implements vscode.Disposable {
     99,
   );
 
-  constructor(private readonly checkpoints: AgentTurnCheckpointService) {
+  constructor(
+    private readonly checkpoints: AgentTurnCheckpointService,
+    private readonly viewColumn: () => vscode.ViewColumn = () =>
+      vscode.ViewColumn.One,
+  ) {
     this.disposables = [
-      this.added,
-      this.deleted,
       this.codeLens,
       this.approveAllStatus,
       this.closeStatus,
@@ -159,7 +136,12 @@ export class AgentTurnReview implements vscode.Disposable {
         ) {
           return;
         }
-        if (event.document.getText() !== active.afterText) {
+        const currentText = event.document.getText();
+        if (currentText === active.afterText) {
+          this.render();
+          return;
+        }
+        if (!this.reconcileRevert(active, currentText)) {
           this.abandonForExternalEdit(active);
           return;
         }
@@ -246,10 +228,18 @@ export class AgentTurnReview implements vscode.Disposable {
       );
       return false;
     }
-    await vscode.window.showTextDocument(document, {
-      preview: false,
-      preserveFocus: true,
-    });
+    const opened = await this.checkpoints.openReviewDiff(
+      turnId,
+      filePath,
+      this.viewColumn(),
+    );
+    if (!opened) {
+      await this.checkpoints.openDiff(turnId, filePath);
+      void vscode.window.showInformationMessage(
+        "This file no longer exists, so it was opened as a side-by-side diff.",
+      );
+      return false;
+    }
     this.clearActive();
     const key = `${turnId}\0${filePath}`;
     this.active = {
@@ -350,32 +340,30 @@ export class AgentTurnReview implements vscode.Disposable {
   }
 
   private clearActive(): void {
-    const active = this.active;
     this.active = undefined;
     this.approveAllStatus.hide();
     this.closeStatus.hide();
-    if (active) {
-      const editor = this.editor(active);
-      if (editor) {
-        editor.setDecorations(this.added, []);
-        editor.setDecorations(this.deleted, []);
-      }
-    }
     this.codeLens.set(undefined, []);
+  }
+
+  /**
+   * Accepts edits that only undo known agent hunks, such as a revert from the
+   * diff gutter. Anything else is an unrelated manual edit.
+   */
+  private reconcileRevert(active: ActiveReview, currentText: string): boolean {
+    const known = new Set<string>([
+      ...active.approved,
+      ...active.pending.map((item) => item.signature),
+    ]);
+    const remaining = lineHunks(active.beforeText, currentText);
+    if (!remaining.every((hunk) => known.has(signature(hunk)))) return false;
+    active.afterText = currentText;
+    return true;
   }
 
   private render(): void {
     const active = this.active;
-    const editor = active ? this.editor(active) : undefined;
-    if (!active || !editor) {
-      this.codeLens.set(active?.uri.toString(), []);
-      return;
-    }
-    const document = editor.document;
-    if (document.getText() !== active.afterText) {
-      this.abandonForExternalEdit(active);
-      return;
-    }
+    if (!active) return;
     const all = lineHunks(active.beforeText, active.afterText);
     const pending = all
       .map((hunk) => ({ hunk, signature: signature(hunk) }))
@@ -388,44 +376,10 @@ export class AgentTurnReview implements vscode.Disposable {
       return;
     }
 
-    const added: vscode.DecorationOptions[] = [];
-    const deleted: vscode.DecorationOptions[] = [];
-    for (const { hunk } of pending) {
-      if (hunk.afterStart < hunk.afterEnd) {
-        const last = Math.min(hunk.afterEnd - 1, document.lineCount - 1);
-        added.push({
-          range: new vscode.Range(
-            hunk.afterStart,
-            0,
-            last,
-            document.lineAt(last).range.end.character,
-          ),
-        });
-      }
-      if (hunk.beforeText) {
-        const line = Math.min(
-          Math.max(0, hunk.afterStart === document.lineCount ? hunk.afterStart - 1 : hunk.afterStart),
-          Math.max(0, document.lineCount - 1),
-        );
-        const hover = new vscode.MarkdownString();
-        hover.appendMarkdown("**Original text**\n\n");
-        hover.appendCodeblock(hunk.beforeText.replace(/\n$/, ""), "latex");
-        deleted.push({
-          range: new vscode.Range(line, 0, line, 0),
-          hoverMessage: hover,
-          renderOptions: {
-            after: {
-              contentText: lineSummary(hunk.beforeText),
-            },
-          },
-        });
-      }
-    }
-    editor.setDecorations(this.added, added);
-    editor.setDecorations(this.deleted, deleted);
     this.codeLens.set(active.uri.toString(), pending);
     this.approveAllStatus.text = `$(check-all) Approve all (${pending.length})`;
-    this.approveAllStatus.tooltip = "Keep every agent change in this file.";
+    this.approveAllStatus.tooltip =
+      "Keep every agent change in this file. To restore one change, use the revert action in the diff gutter.";
     this.approveAllStatus.command = COMMAND.acceptAll;
     this.approveAllStatus.show();
     this.closeStatus.text = "$(close) Close agent review";

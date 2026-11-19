@@ -5,6 +5,7 @@ import type {
   AgentUiThreadSummary,
   AgentUiTurnSummary,
 } from "@latex-comfort/shared";
+import type * as vscode from "vscode";
 
 export interface StoredAgentThread {
   id: string;
@@ -56,6 +57,11 @@ export interface AgentTurnCheckpointService {
     before: AgentWorkspaceSnapshot,
   ): Promise<AgentUiChangeFile[]>;
   openDiff(turnId: string, path: string): Promise<void>;
+  openReviewDiff(
+    turnId: string,
+    path: string,
+    viewColumn?: vscode.ViewColumn,
+  ): Promise<boolean>;
   versions(
     turnId: string,
     path: string,

@@ -1,5 +1,9 @@
 import * as acp from "@agentclientprotocol/sdk";
 import { mapSessionUpdate } from "./acp-events";
+import {
+  agentProposedDiffs,
+  agentToolKind,
+} from "./permission-content";
 import type {
   AgentAuthMethod,
   AgentEvent,
@@ -111,10 +115,20 @@ export async function runAcpSession(options: AcpSessionOptions): Promise<void> {
     .client({ name: "latex-comfort" })
     .onRequest(acp.methods.client.session.requestPermission, async ({ params }) => {
       const request: AgentPermissionRequest = {
+        ...(params.toolCall.toolCallId
+          ? { toolCallId: params.toolCall.toolCallId }
+          : {}),
+        ...(agentToolKind(params.toolCall.kind)
+          ? { toolKind: agentToolKind(params.toolCall.kind) }
+          : {}),
         title: params.toolCall.title?.trim() || "Allow this agent action?",
+        ...(agentProposedDiffs(params.toolCall.content)
+          ? { diffs: agentProposedDiffs(params.toolCall.content) }
+          : {}),
         options: params.options.map((option) => ({
           id: option.optionId,
           label: option.name,
+          kind: option.kind,
         })),
       };
       const selected = await options.requestPermission(request);

@@ -5,16 +5,19 @@ import {
   type AgentUiAgentId,
   type AgentUiAuthMethod,
   type AgentUiContext,
+  type AgentUiTurnSummary,
   type AgentWebviewToHostMessage,
 } from "@latex-comfort/shared";
 import { AgentTurnReview } from "./agent-review";
 import { AgentCheckpointService } from "./checkpoints";
+import { AgentProposalDiff } from "./proposal-diff";
+import { registerOpenCodeReviewCommand } from "./opencode-review";
 import { createInteractiveRuntime } from "./interactive-runtime";
 import { findWorkspaceFiles } from "./file-mentions";
 import { AgentPanelController } from "./panel-controller";
 import { AgentPanelSurface } from "./panel-surface";
 import { AgentThreadStore } from "./thread-store";
-import type { AgentId, AgentSettings } from "./types";
+import type { AgentId, AgentApprovalMode, AgentSettings } from "./types";
 
 const LAST_AGENT_KEY = "latexComfort.agent.lastAgent";
 const VISIBLE_MODELS_KEY = "latexComfort.agent.visibleModels";
@@ -30,6 +33,21 @@ function readSettings(): AgentSettings {
     opencodeModel: config.get("opencodeModel", ""),
     codexModel: config.get("codexModel", ""),
   };
+}
+
+function readApprovalMode(): AgentApprovalMode {
+  const value = vscode.workspace
+    .getConfiguration("latexComfort.ai.agent")
+    .get<string>("approvalMode", "approval-required");
+  return value === "full-access" || value === "auto"
+    ? value
+    : "approval-required";
+}
+
+function readReviewAutoOpen(): boolean {
+  return vscode.workspace
+    .getConfiguration("latexComfort.ai.agent")
+    .get<boolean>("review.autoOpenDiff", false);
 }
 
 function workspaceDirectory(): string | undefined {
@@ -159,7 +177,14 @@ export function registerAgentPanel(
   let visibleModels = readVisibleModels(context);
   const threadStore = new AgentThreadStore(context.globalStorageUri.fsPath);
   const checkpoints = new AgentCheckpointService(context.globalStorageUri.fsPath);
-  const turnReview = new AgentTurnReview(checkpoints);
+  let lastTextEditorColumn = vscode.ViewColumn.One;
+  const turnReview = new AgentTurnReview(checkpoints, () => lastTextEditorColumn);
+  const proposalDiff = new AgentProposalDiff(() => lastTextEditorColumn);
+  const reviewStatus = vscode.window.createStatusBarItem(
+    vscode.StatusBarAlignment.Right,
+    98,
+  );
+  let pendingReviewTurn: AgentUiTurnSummary | undefined;
   let panel: AgentPanelSurface;
   let controller: AgentPanelController;
 
@@ -193,13 +218,33 @@ export function registerAgentPanel(
       case "agentResolvePermission":
         controller.resolvePermission(message.permissionId, message.optionId);
         return;
+      case "agentSelectApprovalMode":
+        await controller.setApprovalMode(message.mode);
+        return;
+      case "agentOpenPermissionDiff": {
+        const diff = controller.permissionDiff(
+          message.permissionId,
+          message.index,
+        );
+        if (diff) await proposalDiff.open(diff);
+        return;
+      }
+      case "agentConfigureOpenCodeReview":
+        await vscode.commands.executeCommand(
+          "latexComfort.ai.agent.configureReview",
+        );
+        return;
       case "agentAuthenticate":
         await controller.authenticate(message.methodId);
         return;
       case "agentOpenDiff":
+        pendingReviewTurn = undefined;
+        reviewStatus.hide();
         await turnReview.open(message.turnId, message.path);
         return;
       case "agentOpenTurnDiffs":
+        pendingReviewTurn = undefined;
+        reviewStatus.hide();
         await controller.openTurnDiffs(message.turnId);
         return;
       case "agentRestoreTurn": {
@@ -254,6 +299,12 @@ export function registerAgentPanel(
     onSnapshot: (snapshot) => panel.render(snapshot),
     authenticateTerminal,
     initialAgentId: initialAgent(context),
+    initialApprovalMode: readApprovalMode(),
+    onApprovalModeChanged: async (mode) => {
+      await vscode.workspace
+        .getConfiguration("latexComfort.ai.agent")
+        .update("approvalMode", mode, vscode.ConfigurationTarget.Global);
+    },
     initialModels: {
       ...(settings.opencodeModel?.trim()
         ? { opencode: settings.opencodeModel.trim() }
@@ -272,7 +323,19 @@ export function registerAgentPanel(
     },
     threadStore,
     checkpoints,
-    onTurnChanges: (turn) => turnReview.openTurn(turn),
+    onTurnChanges: (turn) => {
+      if (readReviewAutoOpen()) {
+        pendingReviewTurn = undefined;
+        reviewStatus.hide();
+        turnReview.openTurn(turn);
+        return;
+      }
+      pendingReviewTurn = turn;
+      reviewStatus.text = `$(diff) Review ${turn.changes.length} change${turn.changes.length === 1 ? "" : "s"}`;
+      reviewStatus.tooltip = "Review the files changed by the latest agent turn.";
+      reviewStatus.command = "latexComfort.ai.agent.reviewTurn";
+      reviewStatus.show();
+    },
   });
 
   const open = (): void => {
@@ -288,11 +351,26 @@ export function registerAgentPanel(
 
   return [
     vscode.commands.registerCommand(COMMANDS.openAgent, open),
-    vscode.window.onDidChangeActiveTextEditor(refreshContext),
+    vscode.commands.registerCommand("latexComfort.ai.agent.reviewTurn", () => {
+      const turn = pendingReviewTurn;
+      if (!turn) return;
+      pendingReviewTurn = undefined;
+      reviewStatus.hide();
+      turnReview.openTurn(turn);
+    }),
+    vscode.window.onDidChangeActiveTextEditor((editor) => {
+      if (editor && editor.document.uri.scheme !== "latex-comfort-agent-proposal") {
+        lastTextEditorColumn = editor.viewColumn ?? lastTextEditorColumn;
+      }
+      refreshContext();
+    }),
     vscode.window.onDidChangeTextEditorSelection(refreshContext),
     { dispose: () => void controller.dispose() },
     checkpoints,
     turnReview,
+    proposalDiff,
+    reviewStatus,
+    registerOpenCodeReviewCommand(),
     panel,
   ];
 }

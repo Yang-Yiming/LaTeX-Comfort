@@ -274,6 +274,40 @@ export class AgentCheckpointService
     );
   }
 
+  /**
+   * Opens a review diff whose modified side is the real workspace file, so
+   * VS Code handles wrapping and shows the full deleted text natively.
+   */
+  async openReviewDiff(
+    turnId: string,
+    filePath: string,
+    viewColumn?: vscode.ViewColumn,
+  ): Promise<boolean> {
+    const manifest = await this.readManifest(turnId);
+    const file = manifest?.files.find((candidate) => candidate.path === filePath);
+    if (!manifest || !file || !file.afterHash) return false;
+    const beforeText = file.beforeHash
+      ? await this.readContent(file.beforeHash)
+      : "";
+    const beforeUri = vscode.Uri.from({
+      scheme: DIFF_SCHEME,
+      path: `/${turnId}/before/${file.path}`,
+    });
+    this.provider.set(beforeUri, beforeText);
+    await vscode.commands.executeCommand(
+      "vscode.diff",
+      beforeUri,
+      vscode.Uri.file(nodePath.resolve(manifest.root, file.path)),
+      `${file.path} · Agent review`,
+      {
+        preview: true,
+        preserveFocus: true,
+        ...(viewColumn !== undefined ? { viewColumn } : {}),
+      },
+    );
+    return true;
+  }
+
   async versions(
     turnId: string,
     filePath: string,

@@ -125,6 +125,111 @@ describe("AgentPanelController", () => {
     expect(instance.snapshot().phase).toBe("ready");
   });
 
+  it("auto-approves every edit in full access without a permission card", async () => {
+    const agentRuntime = runtime();
+    let selected: string | undefined;
+    const createRuntime = vi.fn(
+      async (deps: {
+        requestPermission(request: AgentPermissionRequest): Promise<string | undefined>;
+      }) => ({
+        ...agentRuntime,
+        prompt: vi.fn(async () => {
+          selected = await deps.requestPermission({
+            toolCallId: "tool-1",
+            toolKind: "edit",
+            title: "Edit main.tex",
+            diffs: [
+              { path: "/workspace/main.tex", oldText: "old\n", newText: "new\n" },
+            ],
+            options: [
+              { id: "allow", label: "Allow once", kind: "allow_once" },
+              { id: "reject", label: "Reject", kind: "reject_once" },
+            ],
+          });
+        }),
+      }),
+    );
+    const { instance } = controller(agentRuntime, {
+      createRuntime,
+      initialApprovalMode: "full-access",
+    });
+
+    await instance.submit("Edit the section");
+
+    expect(selected).toBe("allow");
+    const entry = instance.snapshot().entries.find(
+      (candidate) => candidate.type === "permission",
+    );
+    expect(entry?.type).toBe("permission");
+    if (entry?.type === "permission") {
+      expect(entry.autoResolved).toBe(true);
+      expect(entry.diffs?.[0]?.path).toBe("/workspace/main.tex");
+    }
+  });
+
+  it("auto-allows workspace edits but asks outside it in auto mode", async () => {
+    let inside = "";
+    let outside = "";
+    const agentRuntime = runtime();
+    const createRuntime = vi.fn(
+      async (deps: {
+        requestPermission(request: AgentPermissionRequest): Promise<string | undefined>;
+      }) => ({
+        ...agentRuntime,
+        prompt: vi.fn(async () => {
+          const options = [
+            { id: "allow", label: "Allow once", kind: "allow_once" },
+            { id: "reject", label: "Reject", kind: "reject_once" },
+          ];
+          inside =
+            (await deps.requestPermission({
+              toolKind: "edit",
+              title: "Edit inside",
+              diffs: [
+                { path: "/workspace/main.tex", oldText: "a\n", newText: "b\n" },
+              ],
+              options,
+            })) ?? "";
+          outside =
+            (await deps.requestPermission({
+              toolKind: "edit",
+              title: "Edit outside",
+              diffs: [
+                { path: "/outside/main.tex", oldText: "a\n", newText: "b\n" },
+              ],
+              options,
+            })) ?? "";
+        }),
+      }),
+    );
+    const { instance } = controller(agentRuntime, {
+      createRuntime,
+      initialApprovalMode: "auto",
+    });
+
+    const running = instance.submit("Edit");
+    await vi.waitFor(() => {
+      expect(instance.snapshot().phase).toBe("waiting_permission");
+    });
+    const pending = instance
+      .snapshot()
+      .entries.find(
+        (entry) => entry.type === "permission" && !entry.resolvedOptionId,
+      );
+    if (!pending) throw new Error("missing pending permission");
+    instance.resolvePermission(pending.id, "allow");
+    await running;
+
+    expect(inside).toBe("allow");
+    expect(outside).toBe("allow");
+    expect(
+      instance
+        .snapshot()
+        .entries.filter((entry) => entry.type === "permission")
+        .map((entry) => entry.type === "permission" && entry.autoResolved),
+    ).toEqual([true, undefined]);
+  });
+
   it("surfaces advertised authentication methods and resumes the turn", async () => {
     const agentRuntime = runtime();
     const createRuntime = vi.fn(

@@ -14,6 +14,7 @@ const INITIAL: AgentUiSnapshot = {
   agentId: "opencode",
   agentLabel: "OpenCode",
   phase: "starting",
+  approvalMode: "approval-required",
   title: "New thread",
   entries: [],
   configOptions: [],
@@ -78,12 +79,21 @@ export function AgentApp() {
       onSelectConfig={(configId, value) =>
         vscode.postMessage({ type: "agentSelectConfig", configId, value })
       }
+      onSelectApprovalMode={(mode) =>
+        vscode.postMessage({ type: "agentSelectApprovalMode", mode })
+      }
+      onConfigureOpenCodeReview={() =>
+        vscode.postMessage({ type: "agentConfigureOpenCodeReview" })
+      }
       onResolvePermission={(permissionId, optionId) =>
         vscode.postMessage({
           type: "agentResolvePermission",
           permissionId,
           ...(optionId ? { optionId } : {}),
         })
+      }
+      onOpenPermissionDiff={(permissionId, index) =>
+        vscode.postMessage({ type: "agentOpenPermissionDiff", permissionId, index })
       }
       onAuthenticate={(methodId) =>
         vscode.postMessage({

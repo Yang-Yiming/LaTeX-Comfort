@@ -4,6 +4,10 @@ import type {
   AgentUiPromptCapabilities,
 } from "@latex-comfort/shared";
 import { mapAvailableCommands, mapConfigOptions, mapSessionUpdate } from "./acp-events";
+import {
+  agentProposedDiffs,
+  agentToolKind,
+} from "./permission-content";
 import type { AgentRemoteSession } from "./history-types";
 import type {
   AgentAuthMethod,
@@ -141,7 +145,13 @@ export class InteractiveAcpSession {
             ...(params.toolCall.toolCallId
               ? { toolCallId: params.toolCall.toolCallId }
               : {}),
+            ...(agentToolKind(params.toolCall.kind)
+              ? { toolKind: agentToolKind(params.toolCall.kind) }
+              : {}),
             title: params.toolCall.title?.trim() || "Allow this agent action?",
+            ...(agentProposedDiffs(params.toolCall.content)
+              ? { diffs: agentProposedDiffs(params.toolCall.content) }
+              : {}),
             ...(params.toolCall.locations
               ? {
                   locations: params.toolCall.locations.map((location) => ({

@@ -1,6 +1,11 @@
-import type { AgentUiAttachment } from "@latex-comfort/shared";
+import type {
+  AgentUiApprovalMode,
+  AgentUiAttachment,
+} from "@latex-comfort/shared";
 
 export type AgentId = "opencode" | "codex";
+
+export type AgentApprovalMode = AgentUiApprovalMode;
 
 export interface AgentSettings {
   opencodePath: string;
@@ -22,6 +27,24 @@ export interface AgentDefinition {
 export interface AgentToolLocation {
   path: string;
   line?: number;
+}
+
+export type AgentToolKind =
+  | "read"
+  | "edit"
+  | "delete"
+  | "move"
+  | "search"
+  | "execute"
+  | "think"
+  | "fetch"
+  | "switch_mode"
+  | "other";
+
+export interface AgentProposedDiff {
+  path: string;
+  oldText?: string;
+  newText: string;
 }
 
 export interface AgentConfigOption {
@@ -70,8 +93,10 @@ export interface AgentRunRequest {
 
 export interface AgentPermissionRequest {
   toolCallId?: string;
+  toolKind?: AgentToolKind;
   title: string;
   locations?: AgentToolLocation[];
+  diffs?: AgentProposedDiff[];
   options: AgentPermissionOption[];
 }
 

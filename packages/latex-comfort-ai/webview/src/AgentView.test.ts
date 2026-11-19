@@ -11,6 +11,7 @@ function snapshot(overrides: Partial<AgentUiSnapshot> = {}): AgentUiSnapshot {
     agentId: "opencode",
     agentLabel: "OpenCode",
     phase: "idle",
+    approvalMode: "approval-required",
     title: "New thread",
     entries: [],
     configOptions: [
@@ -52,7 +53,10 @@ function render(value: AgentUiSnapshot): string {
       onDeleteThread: noop,
       onSelectAgent: noop,
       onSelectConfig: noop,
+      onSelectApprovalMode: noop,
+      onConfigureOpenCodeReview: noop,
       onResolvePermission: noop,
+      onOpenPermissionDiff: noop,
       onAuthenticate: noop,
       onOpenDiff: noop,
       onOpenTurnDiffs: noop,
@@ -124,6 +128,24 @@ describe("AgentView", () => {
             id: "permission-1",
             at: 4,
             title: "Edit main.tex",
+            toolKind: "edit",
+            diffs: [
+              {
+                path: "main.tex",
+                oldText: "old sentence\n",
+                newText: "new sentence\n",
+                additions: 1,
+                deletions: 1,
+                hunks: [
+                  {
+                    beforeText: "old sentence\n",
+                    afterText: "new sentence\n",
+                    beforeStart: 3,
+                    afterStart: 3,
+                  },
+                ],
+              },
+            ],
             options: [
               { id: "allow", label: "Allow once", kind: "allow_once" },
               { id: "reject", label: "Reject", kind: "reject_once" },
@@ -141,6 +163,53 @@ describe("AgentView", () => {
     expect(html).toContain("Allow once");
     expect(html).toContain("Reject");
     expect(html).toContain("Waiting for permission");
+    expect(html).toContain("Open full diff");
+    expect(html).toContain("− old sentence");
+    expect(html).toContain("+ new sentence");
+  });
+
+  it("renders the approval mode picker and auto-resolved edits", () => {
+    const html = render(
+      snapshot({
+        approvalMode: "auto",
+        entries: [
+          {
+            type: "permission",
+            id: "permission-1",
+            at: 4,
+            title: "Edit main.tex",
+            toolKind: "edit",
+            autoResolved: true,
+            resolvedOptionId: "allow",
+            diffs: [
+              {
+                path: "main.tex",
+                oldText: "",
+                newText: "new line\n",
+                additions: 1,
+                deletions: 0,
+                hunks: [
+                  {
+                    beforeText: "",
+                    afterText: "new line\n",
+                    beforeStart: 0,
+                    afterStart: 0,
+                  },
+                ],
+              },
+            ],
+            options: [
+              { id: "allow", label: "Allow once", kind: "allow_once" },
+              { id: "reject", label: "Reject", kind: "reject_once" },
+            ],
+          },
+        ],
+      }),
+    );
+
+    expect(html).toContain("Ask for risky actions");
+    expect(html).toContain("Auto-allowed");
+    expect(html).toContain("+1 −0");
   });
 
   it("renders authentication actions instead of a dead prompt", () => {
