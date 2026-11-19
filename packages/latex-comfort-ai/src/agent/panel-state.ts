@@ -79,6 +79,23 @@ function entryById(
   return entries.find((entry) => entry.id === id);
 }
 
+/**
+ * Marks every assistant or thinking entry except `keepId` as finished.
+ * Only the block that is still receiving chunks may stay streaming.
+ */
+export function settleStreaming(
+  entries: AgentUiEntry[],
+  keepId?: string,
+): AgentUiEntry[] {
+  return entries.map((entry) =>
+    (entry.type === "assistant" || entry.type === "thinking") &&
+    entry.id !== keepId &&
+    entry.streaming
+      ? { ...entry, streaming: false }
+      : entry,
+  );
+}
+
 export function appendUserMessage(
   state: AgentPanelState,
   text: string,
@@ -130,7 +147,7 @@ export function addPermission(
   };
   return update(state, {
     phase: "waiting_permission",
-    entries: [...state.entries, entry],
+    entries: [...settleStreaming(state.entries), entry],
   });
 }
 
@@ -176,10 +193,11 @@ export function reduceAgentEvent(
     }
     case "text": {
       const id = event.messageId ?? state.fallbackAssistantId;
-      const existing = entryById(state.entries, id);
+      const entries = settleStreaming(state.entries, id);
+      const existing = entryById(entries, id);
       if (existing?.type === "assistant") {
         return update(state, {
-          entries: state.entries.map((entry) =>
+          entries: entries.map((entry) =>
             entry.type === "assistant" && entry.id === id
               ? { ...entry, text: entry.text + event.text, streaming: true }
               : entry,
@@ -188,7 +206,7 @@ export function reduceAgentEvent(
       }
       return update(state, {
         entries: [
-          ...state.entries,
+          ...entries,
           {
             type: "assistant",
             id,
@@ -201,10 +219,11 @@ export function reduceAgentEvent(
     }
     case "thinking": {
       const id = `thinking:${event.messageId ?? state.fallbackAssistantId}`;
-      const existing = entryById(state.entries, id);
+      const entries = settleStreaming(state.entries, id);
+      const existing = entryById(entries, id);
       if (existing?.type === "thinking") {
         return update(state, {
-          entries: state.entries.map((entry) =>
+          entries: entries.map((entry) =>
             entry.type === "thinking" && entry.id === id
               ? { ...entry, text: entry.text + event.text, streaming: true }
               : entry,
@@ -213,7 +232,7 @@ export function reduceAgentEvent(
       }
       return update(state, {
         entries: [
-          ...state.entries,
+          ...entries,
           {
             type: "thinking",
             id,
@@ -226,10 +245,11 @@ export function reduceAgentEvent(
     }
     case "tool": {
       const id = `tool:${event.toolCallId}`;
-      const existing = entryById(state.entries, id);
+      const entries = settleStreaming(state.entries);
+      const existing = entryById(entries, id);
       if (existing?.type === "tool") {
         return update(state, {
-          entries: state.entries.map((entry) =>
+          entries: entries.map((entry) =>
             entry.id === id
               ? {
                   ...entry,
@@ -245,7 +265,7 @@ export function reduceAgentEvent(
       }
       return update(state, {
         entries: [
-          ...state.entries,
+          ...entries,
           {
             type: "tool",
             id,
@@ -263,7 +283,7 @@ export function reduceAgentEvent(
     case "notice":
       return update(state, {
         entries: [
-          ...state.entries,
+          ...settleStreaming(state.entries),
           {
             type: "notice",
             id: `notice-${state.revision + 1}`,
@@ -292,11 +312,7 @@ export function reduceAgentEvent(
 export function finishTurn(state: AgentPanelState): AgentPanelState {
   return update(state, {
     phase: "ready",
-    entries: state.entries.map((entry) =>
-      entry.type === "assistant" || entry.type === "thinking"
-        ? { ...entry, streaming: false }
-        : entry,
-    ),
+    entries: settleStreaming(state.entries),
   });
 }
 

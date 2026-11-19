@@ -3,6 +3,7 @@ import {
   addPermission,
   appendUserMessage,
   createAgentPanelState,
+  finishTurn,
   reduceAgentEvent,
   resolvePermission,
 } from "./panel-state";
@@ -53,6 +54,55 @@ describe("agent panel state", () => {
         .filter((entry) => entry.type === "assistant")
         .map((entry) => entry.text),
     ).toEqual(["Answer one", "Answer two"]);
+  });
+
+  it("keeps only the newest thinking block streaming", () => {
+    let state = createAgentPanelState({
+      agentId: "opencode",
+      agentLabel: "OpenCode",
+      now: () => 12,
+    });
+
+    state = reduceAgentEvent(state, {
+      type: "thinking",
+      messageId: "message-1:reasoning:0",
+      text: "Look around",
+    });
+    state = reduceAgentEvent(state, {
+      type: "tool",
+      toolCallId: "tool-1",
+      title: "read",
+      status: "completed",
+    });
+    state = reduceAgentEvent(state, {
+      type: "thinking",
+      messageId: "message-2:reasoning:0",
+      text: "Now decide",
+    });
+
+    expect(
+      state.entries.flatMap((entry) =>
+        entry.type === "thinking" || entry.type === "assistant"
+          ? [entry.streaming]
+          : [],
+      ),
+    ).toEqual([false, true]);
+  });
+
+  it("clears streaming when the turn finishes", () => {
+    let state = createAgentPanelState({
+      agentId: "opencode",
+      agentLabel: "OpenCode",
+      now: () => 14,
+    });
+    state = reduceAgentEvent(state, {
+      type: "thinking",
+      messageId: "message-1:reasoning:0",
+      text: "Working",
+    });
+    state = finishTurn(state);
+
+    expect(state.entries[0]).toMatchObject({ type: "thinking", streaming: false });
   });
 
   it("records attachment names on the user turn", () => {

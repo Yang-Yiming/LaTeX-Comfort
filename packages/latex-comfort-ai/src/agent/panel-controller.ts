@@ -20,6 +20,7 @@ import {
   reduceAgentEvent,
   resolvePermission,
   setPhase,
+  settleStreaming,
   type AgentPanelState,
 } from "./panel-state";
 import type {
@@ -458,7 +459,7 @@ export class AgentPanelController {
       this.state = {
         ...this.freshState(thread.agentId),
         title: thread.title,
-        entries: thread.entries,
+        entries: settleStreaming(thread.entries),
         ...(thread.model ? { currentModel: thread.model } : {}),
       };
     } else if (remote) {
@@ -576,7 +577,7 @@ export class AgentPanelController {
       createdAt: this.threadCreatedAt,
       updatedAt: now,
       ...(this.state.currentModel ? { model: this.state.currentModel } : {}),
-      entries: this.state.entries,
+      entries: settleStreaming(this.state.entries),
       turns: this.turns,
     };
     await store.save(thread);
@@ -672,11 +673,10 @@ export class AgentPanelController {
 
   private fail(error: unknown, addEntry = true): void {
     const message = messageOf(error);
+    const entries = settleStreaming(this.state.entries);
     this.state = {
       ...setPhase(this.state, "failed", message),
-      ...(addEntry
-        ? { entries: [...this.state.entries, errorEntry(this.state, message)] }
-        : {}),
+      entries: addEntry ? [...entries, errorEntry(this.state, message)] : entries,
     };
     this.emit();
   }

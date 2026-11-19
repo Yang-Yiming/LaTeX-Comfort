@@ -226,4 +226,33 @@ describe("AgentPanelController", () => {
     expect(instance.snapshot().currentModel).toBe("provider/two");
     await vi.waitFor(() => expect(createRuntime).toHaveBeenCalledTimes(2));
   });
+
+  it("settles streaming blocks when the agent turn fails", async () => {
+    const agentRuntime = runtime();
+    const createRuntime = vi.fn(
+      async (deps: { onEvent(event: { type: "thinking"; messageId: string; text: string }): void }) => ({
+        ...agentRuntime,
+        prompt: vi.fn(async () => {
+          deps.onEvent({
+            type: "thinking",
+            messageId: "message-1:reasoning:0",
+            text: "Working",
+          });
+          throw new Error("Agent crashed");
+        }),
+      }),
+    );
+    const { instance } = controller(agentRuntime, { createRuntime });
+
+    await instance.submit("Do the task");
+
+    expect(instance.snapshot().phase).toBe("failed");
+    expect(
+      instance.snapshot().entries.flatMap((entry) =>
+        entry.type === "thinking" || entry.type === "assistant"
+          ? [entry.streaming]
+          : [],
+      ),
+    ).toEqual([false]);
+  });
 });
