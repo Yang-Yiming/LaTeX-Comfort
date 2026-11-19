@@ -10,9 +10,21 @@ This repository contains two extensions and one installation bundle:
 - **LaTeX Comfort AI** (`latex-comfort-ai`) — optional AI selection editing.
 - **LaTeX Comfort Bundle** (`latex-comfort-bundle`) — installs both.
 
-The first AI feature is an inline selection editor: select text, choose Proofread, Polish or Rewrite, review a word-level diff, then accept chosen changes or discard them.
-
 The core extension also includes a project-scoped Papers view: browse the project bibliography, search it, add papers by DOI/arXiv/title/BibTeX, and insert citations. See `docs/paper-basics.md`.
+
+## AI features
+
+The AI extension currently includes:
+
+- **Selection editing** — select text and run **LaTeX Comfort AI: Edit Selection…** (`Cmd+Alt+K` on macOS, `Ctrl+Alt+K` elsewhere), choose Proofread, Polish or Rewrite, then review a word-level diff and accept or discard individual changes. The document is not modified until you accept.
+- **Review surfaces** — **LaTeX Comfort AI: Configure Review Surface** switches the selection diff between the native inline editor, an experimental editor inset, and a side panel. The default (`auto`) picks a surface based on the size of the selection.
+- **Providers** — **LaTeX Comfort AI: Configure Provider** connects either VS Code's language models or an OpenAI-compatible endpoint (OpenAI, Ollama, LM Studio, …). API keys are stored in VS Code SecretStorage.
+- **Agent panel** — **LaTeX Comfort AI: Open Agent** talks to a locally installed OpenCode or Codex agent over ACP: model selection, inline tool activity and permission requests, saved thread history, remote sessions, per-turn file diffs, and fail-closed restore of the files a turn changed.
+- **Run Agent** — **LaTeX Comfort AI: Run Agent** sends a one-off prompt to a local CLI agent and streams progress to an output channel without opening the panel.
+
+The AI extension was developed with VS Code's built-in AI features (Copilot, chat, and inline suggestions) turned off. It may therefore overlap or conflict with them in places, such as how editor decorations, inline review widgets, or chat-style panels are presented.
+
+The core **LaTeX Comfort** extension does not register any AI or chat integration, so it neither depends on nor conflicts with VS Code's built-in AI features whether they are enabled or disabled.
 
 ## Development
 

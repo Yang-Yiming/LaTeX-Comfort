@@ -9,7 +9,17 @@ The document is not modified until you accept.
 Configure a provider with **LaTeX Comfort AI: Configure Provider**. API keys are
 stored in VS Code SecretStorage.
 
+**LaTeX Comfort AI: Configure Review Surface** switches the selection diff
+between the native inline editor, the experimental editor inset, and a side
+panel. **LaTeX Comfort AI: Run Agent** sends a one-off prompt to a local CLI
+agent and streams progress to an output channel without opening the panel.
+
 This extension requires the **LaTeX Comfort** core extension.
+
+The AI extension was developed with VS Code's built-in AI features (Copilot,
+chat, and inline suggestions) turned off, so it may overlap or conflict with
+them in places. The core LaTeX Comfort extension does not register any AI or
+chat integration and is unaffected either way.
 
 ## Agent panel
 
