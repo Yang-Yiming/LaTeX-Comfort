@@ -248,7 +248,7 @@ export class AgentTurnReview implements vscode.Disposable {
     }
     await vscode.window.showTextDocument(document, {
       preview: false,
-      preserveFocus: false,
+      preserveFocus: true,
     });
     this.clearActive();
     const key = `${turnId}\0${filePath}`;
